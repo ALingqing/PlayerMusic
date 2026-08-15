@@ -97,14 +97,6 @@ class MusicPlayerPlugin : JavaPlugin() {
         loadLanguageFile()
         loadConfiguration()
 
-        // 释放内置 ffmpeg（Linux），使 /bf download 的 MP3→OGG 转换开箱即用
-        val extractedFfmpeg = NativeFfmpegLoader.extract(dataFolder)
-        if (extractedFfmpeg != null) {
-            logger.info("已释放内置 ffmpeg 到 $extractedFfmpeg")
-        } else {
-            logger.info("未找到内置 ffmpeg，将使用系统 ffmpeg（若已安装）。")
-        }
-
         if (config.getBoolean("httpServer.enabled", false)) {
             initializeHttpServerAndGenerator()
         } else {

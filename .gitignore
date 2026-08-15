@@ -28,6 +28,3 @@ Thumbs.db
 # Local plugin data
 *.db
 *.db-journal
-
-# Built-in ffmpeg binaries (downloaded during CI build, not committed)
-main/resources/native/

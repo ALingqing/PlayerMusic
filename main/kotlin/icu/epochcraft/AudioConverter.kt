@@ -4,40 +4,21 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * MP3 → OGG Vorbis 音频转换器（基于 ffmpeg）。
+ * MP3 → OGG Vorbis 音频转换器（基于系统 ffmpeg）。
  *
- * ffmpeg 需安装在服务器上。插件自动检测以下位置：
- * - 系统 PATH 中的 ffmpeg/ffmpeg.exe
- * - ~/ffmpeg/bin/ffmpeg (一键安装脚本 install-ffmpeg.sh 的默认位置)
- * - plugins/PlayerMusic/ffmpeg/bin/ffmpeg
+ * 需要服务器上安装 ffmpeg（Debian/Ubuntu: `apt install ffmpeg`，
+ * 或 Pterodactyl 等面板使用带 ffmpeg 的镜像/自行安装）。
+ * 插件自动检测系统 PATH 中的 ffmpeg。
  */
 object AudioConverter {
 
-    /** 是否可用（检测到 ffmpeg）。每次调用实时检测，避免缓存过时结果 */
+    /** 是否可用（检测到系统 ffmpeg）。每次调用实时检测，避免缓存过时结果 */
     val isAvailable: Boolean
         get() = findFfmpeg() != null
 
     private fun findFfmpeg(): String? {
-        // 1. 插件内置 ffmpeg（启动时已解压到 plugins/PlayerMusic/native/ffmpeg）
-        val bundled = NativeFfmpegLoader.extractedPath
-        if (bundled != null && canRun(bundled)) {
-            return bundled
-        }
-        // 2. 系统 PATH
         for (name in listOf("ffmpeg", "ffmpeg.exe")) {
             if (canRun(name)) return name
-        }
-        // 3. 常见安装路径
-        val candidates = mutableListOf<File>()
-        val home = System.getProperty("user.home")
-        if (home != null) {
-            candidates.add(File(home, "ffmpeg/bin/ffmpeg"))
-            candidates.add(File(home, "ffmpeg/bin/ffmpeg.exe"))
-        }
-        for (candidate in candidates) {
-            if (candidate.exists() && candidate.isFile) {
-                if (canRun(candidate.absolutePath)) return candidate.absolutePath
-            }
         }
         return null
     }
@@ -57,7 +38,7 @@ object AudioConverter {
 
     /**
      * 将任意音频文件（MP3/WAV/FLAC/OGG）转换为 OGG Vorbis 文件。
-     * 使用 ffmpeg：`ffmpeg -i input.mp3 -c:a libvorbis -q:a 4 -y output.ogg`
+     * 使用系统 ffmpeg：`ffmpeg -i input.mp3 -c:a libvorbis -q:a 4 -y output.ogg`
      * @return 成功返回转换后的 .ogg File，失败返回 null
      */
     fun convertToOgg(inputFile: File, oggFile: File): File? {

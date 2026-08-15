@@ -25,28 +25,6 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # 下载并准备内置 ffmpeg（不存入 git 仓库，构建时临时下载）
-      - name: 下载内置 ffmpeg
-        run: |
-          mkdir -p native_tmp
-          # amd64 (x86_64): BtbN 静态构建 (GitHub Release，Actions 内访问快且稳)
-          echo "下载 amd64 ffmpeg..."
-          curl -fL --retry 5 --retry-all-errors -o native_tmp/ffmpeg-amd64.tar.xz \
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
-          tar -xJf native_tmp/ffmpeg-amd64.tar.xz -C native_tmp
-          find native_tmp -type f -name ffmpeg -exec cp {} native_tmp/ffmpeg-amd64 \;
-          # arm64: BtbN 静态构建 (GitHub Release)
-          echo "下载 arm64 ffmpeg..."
-          curl -fL --retry 5 --retry-all-errors -o native_tmp/ffmpeg-arm64.tar.xz \
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz"
-          tar -xJf native_tmp/ffmpeg-arm64.tar.xz -C native_tmp
-          find native_tmp -type f -name ffmpeg -exec cp {} native_tmp/ffmpeg-arm64 \;
-          # gzip 压缩并放入 Maven 资源目录
-          mkdir -p main/resources/native
-          gzip -c -9 native_tmp/ffmpeg-amd64 > main/resources/native/ffmpeg-linux-amd64.gz
-          gzip -c -9 native_tmp/ffmpeg-arm64 > main/resources/native/ffmpeg-linux-arm64.gz
-          ls -lh main/resources/native/
-
       - name: 使用 Maven 构建
         run: mvn -B clean package
 
