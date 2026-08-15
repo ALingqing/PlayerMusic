@@ -86,13 +86,19 @@ public class ResourcePackGenerator {
         // 支持 file 协议（如 file:/... 或 file:///...）：直接读取本地文件，无需网络下载
         if ("file".equalsIgnoreCase(audioSourceUrl.getProtocol())) {
             try {
-                File localFile = new File(audioSourceUrl.toURI());
+                // 不用 URL.toURI()（对含 & 等特殊字符的路径会抛异常），改用 getPath()（已 URL 解码）
+                String filePath = audioSourceUrl.getPath();
+                if (filePath == null || filePath.isEmpty()) {
+                    plugin.getLogger().warning("本地音频 URL 缺少路径: " + audioUrl + " (" + modeIdentifier + " 模式)");
+                    return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
+                }
+                File localFile = new File(filePath);
                 if (!localFile.exists() || !localFile.isFile()) {
-                    plugin.getLogger().warning("本地音频文件不存在: " + audioUrl + " (" + modeIdentifier + " 模式)");
+                    plugin.getLogger().warning("本地音频文件不存在: " + localFile.getAbsolutePath() + " (" + modeIdentifier + " 模式)");
                     return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
                 }
                 if (maxDownloadSizeBytes > 0 && localFile.length() > maxDownloadSizeBytes) {
-                    plugin.getLogger().warning("本地音频文件 " + audioUrl + " 过大 (" + modeIdentifier + " 模式): " + localFile.length() + " bytes (max: " + maxDownloadSizeBytes + ")");
+                    plugin.getLogger().warning("本地音频文件 " + localFile.getAbsolutePath() + " 过大 (" + modeIdentifier + " 模式): " + localFile.length() + " bytes (max: " + maxDownloadSizeBytes + ")");
                     return new DownloadedAudioInfo(tempAudioFile, "messages.general.fileTooLarge");
                 }
                 Files.copy(localFile.toPath(), tempAudioFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
