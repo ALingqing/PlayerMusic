@@ -11,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -38,6 +39,9 @@ public class MusicPlayerPlugin extends JavaPlugin {
     private MusicCommands musicCommands;
     private HttpFileServer httpFileServer;
     private ResourcePackGenerator resourcePackGenerator;
+
+    /** 语言文件配置（从 lang-<lang>.yml 加载），保存所有消息文案 */
+    private FileConfiguration langConfig;
 
     /** 日志文件写入器（播放过程日志，不输出到控制台） */
     private PrintWriter logFileWriter;
@@ -75,6 +79,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
         }
         installLogFileHandler();
         saveDefaultConfig();
+        loadLanguageFile();
         loadConfiguration();
 
         if (getConfig().getBoolean("httpServer.enabled", false)) {
@@ -163,6 +168,30 @@ public class MusicPlayerPlugin extends JavaPlugin {
                 || msg.contains("已创建独立的资源包") || msg.contains("已创建合并的资源包")
                 || msg.contains("已清理临时资源包") || msg.contains("自动识别音乐文件")
                 || msg.contains("已从音乐文件夹") || msg.contains("播放音乐");
+    }
+
+    /**
+     * 加载语言文件。config.yml 的 language 指定语言文件名（如 zh → lang-zh.yml）。
+     * 语言文件保存在插件数据文件夹内，若不存在则从 jar 复制默认文件。
+     */
+    private void loadLanguageFile() {
+        String language = getConfig().getString("language", "zh");
+        String langFileName = "lang-" + language + ".yml";
+        File langFile = new File(getDataFolder(), langFileName);
+        if (!langFile.exists()) {
+            saveResource(langFileName, false);
+        }
+        langConfig = YamlConfiguration.loadConfiguration(langFile);
+        getLogger().info("已加载语言文件: " + langFileName);
+    }
+
+    /** 从语言文件读取消息文案；语言文件缺失时回退到主 config（兼容旧版 config.yml 内嵌 messages） */
+    public String getLangMessage(String key) {
+        if (langConfig != null) {
+            String value = langConfig.getString(key);
+            if (value != null) return value;
+        }
+        return getConfig().getString(key);
     }
 
     private void initializeHttpServerAndGenerator() {
@@ -362,6 +391,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
         httpFileServer = null;
         resourcePackGenerator = null;
 
+        loadLanguageFile();
         loadConfiguration();
 
         if (getConfig().getBoolean("httpServer.enabled", false)) {
@@ -603,7 +633,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
     }
 
     public void sendConfigMsg(CommandSender sender, String configKey, String... substitutions) {
-        String template = getConfig().getString(configKey);
+        String template = getLangMessage(configKey);
         if (template != null && !template.isEmpty()) {
             sendLegacyMsg(sender, template, substitutions);
         } else {

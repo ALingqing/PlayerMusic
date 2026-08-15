@@ -163,7 +163,8 @@ public class PlayerResourceListener implements Listener {
         int totalPages = (int) Math.ceil((double) presetSongs.size() / (double) MusicGUI.ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
 
-        String guiTitleFromConfig = plugin.getConfig().getString("gui.title", "§9音乐播放器");
+        String guiTitleFromConfig = plugin.getLangMessage("gui.title");
+        if (guiTitleFromConfig == null) guiTitleFromConfig = "§9音乐播放器";
         String expectedTitleString = guiTitleFromConfig;
         if (totalPages > 1) {
             expectedTitleString += " §7(第 " + (currentGui.getCurrentPage() + 1) + "/" + totalPages + " 页)";
@@ -181,8 +182,10 @@ public class PlayerResourceListener implements Listener {
         if (meta == null || !meta.hasDisplayName() || meta.getDisplayName().isEmpty()) return;
 
         String itemName = meta.getDisplayName();
-        String nextPageName = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("gui.nextPageName", "§a下一页 ->"));
-        String prevPageName = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("gui.prevPageName", "§c<- 上一页"));
+        String nextPageNameRaw = plugin.getLangMessage("gui.nextPageName");
+        String prevPageNameRaw = plugin.getLangMessage("gui.prevPageName");
+        String nextPageName = ChatColor.translateAlternateColorCodes('&', nextPageNameRaw != null ? nextPageNameRaw : "§a下一页 ->");
+        String prevPageName = ChatColor.translateAlternateColorCodes('&', prevPageNameRaw != null ? prevPageNameRaw : "§c<- 上一页");
 
         if (itemName.equals(nextPageName)) {
             currentGui.changePage(player, 1);

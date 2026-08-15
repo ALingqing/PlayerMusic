@@ -273,7 +273,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     }
 
                     roomToStart.setPlayRequestActive(true);
-                    String memberNotification = plugin.getConfig().getString("messages.bf.room.start.memberStartNotification");
+                    String memberNotification = plugin.getLangMessage("messages.bf.room.start.memberStartNotification");
 
                     for (Player member : new ArrayList<>(roomToStart.getMembers())) {
                         if (member.isOnline()) {

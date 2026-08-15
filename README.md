@@ -51,6 +51,9 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 ```yaml
 # PlayerMusic 配置文件
 
+# 语言设置 (消息文案在 lang-<语言>.yml 文件中，如 lang-zh.yml)
+language: "zh"
+
 # HTTP 文件服务器设置
 httpServer:
   enabled: true # 是否启用内置 HTTP 服务器以提供资源包 (true/false)
@@ -86,93 +89,17 @@ musicFolder:
   lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
     - "§7自动识别的文件夹音乐"
     - "§7文件: <name>"
-
-# GUI 相关设置
-gui:
-  title: "§9音乐播放器" # GUI 的标题
-  noPresets: "§c没有可用的音乐。" # 当没有音乐时在GUI中显示的消息
-  prevPageName: "§c<- 上一页" # 上一页按钮的名称
-  nextPageName: "§a下一页 ->" # 下一页按钮的名称
-  prevPageItem: "ARROW" # 上一页按钮的物品材质 (区分大小写, 参考 Spigot Material 枚举)
-  nextPageItem: "ARROW" # 下一页按钮的物品材质
-
-# 消息配置 (所有消息都支持颜色代码 '&')
-# <placeholder> 会被替换为实际值
-messages:
-  general:
-    playerOnly: "§c此命令只能由玩家执行。"
-    noPermission: "§c你没有权限执行此命令。"
-    invalidUrl: "§c提供的URL无效或无法访问。"
-    httpDisabled: "§cHTTP服务器未启用，无法播放在线音乐。"
-    basePackMissing: "§c错误：基础资源包 'base_pack.zip' 在插件文件夹中缺失，但合并模式已启用。请添加基础包或禁用合并模式。"
-    basePackReapplyFailed: "§c尝试恢复基础资源包失败。"
-    downloadFailedResponse: "§c下载音频文件失败，服务器响应无效。URL: <url>"
-    fileTooLarge: "§c音频文件过大 (<size>MB)，无法下载。URL: <url>" # <size> 会被替换
-    downloadException: "§c下载音频文件时发生网络错误。URL: <url>"
-
-  bf: # /bf 命令相关消息
-    usage: |-
-      §e用法: /bf <子命令> [参数...]
-      §7可用子命令: play, stop, gui, createroom, join, start, roomplay, disbandroom, reload, rescan, info
-    unknownCommand: "§c未知子命令。输入 /bf 获取帮助。"
-    play:
-      usage: "§e用法: /bf play <歌曲名称或编号>"
-      notFound: "§c未找到名为 '<song>' 的音乐。"
-      preparing: "§7正在准备播放音乐: <song_name>§7..."
-    stop:
-      notPlaying: "§e你当前没有在播放任何音乐。"
-      stoppedForSelf: "§a已为你停止播放音乐。"
-      stoppedForSelfInRoom: "§a已为你停止在房间 '<room_description>§a' 中的音乐。"
-      roomStopped: "§a音乐室 '<room_description>§a' 的音乐已停止。"
-    createroom:
-      usage: "§e用法: /bf createroom <歌曲名> <房间描述>"
-      noDescription: "§c请输入房间描述。"
-      alreadyCreated: "§c你已经创建了一个音乐室: <room_description>§c。请先解散它。"
-      successWithStartHint: "§a音乐室 '<description>§a' 已创建！歌曲: <url>§a。使用 §e/bf start §a来开始播放。"
-      broadcast: "§e玩家 <creator_name> §e创建了音乐室: <description>"
-    join:
-      usage: "§e用法: /bf join <房主名称>"
-      roomNotFound: "§c未找到由 '<creator>' 创建的音乐室。"
-      alreadyCreator: "§e你已经是音乐室 '<room_description>§e' 的创建者了。"
-      alreadyMember: "§e你已经是音乐室 '<room_description>§e' 的成员了。"
-      successNoAutoPlay: "§a已加入音乐室: <room_description>§a。等待房主开始播放。"
-      leftOtherRoom: "§7已自动离开你之前所在的音乐室: <other_room_description>"
-      internalRoomNotFound: "§c内部错误：尝试加入的房间未找到。"
-    room:
-      start:
-        notRoomCreator: "§c你不是任何音乐室的创建者，无法启动音乐。"
-        noMusicUrl: "§c你的音乐室 '<room_description>§c' 没有设置歌曲。"
-        startingMusic: "§7房间 '<room_description>§7' 正在准备播放音乐..."
-        memberStartNotification: "§e房主 <creator_name> §e在房间 '<room_description>§e' 中开始了音乐播放！"
-        started: "§a已在你的音乐室 '<room_description>§a' 中开始播放音乐。"
-      play:
-        notRoomCreator: "§c你不是任何音乐室的创建者，无法设置音乐。"
-        usage: "§e用法: /bf roomplay <歌曲名>"
-        urlSet: "§a音乐室 '<room_description>§a' 的歌曲已切换为: <url>"
-        urlSame: "§e当前歌曲与音乐室 '<room_description>§e' 的歌曲相同。"
-        startHint: "§7使用 §e/bf start §7来播放新歌曲。"
-    disbandroom:
-      notCreatorOrNoRoom: "§c你没有创建音乐室，或你的音乐室已被解散。"
-      success: "§a音乐室 '<room_description>§a' 已成功解散。"
-      notifyMemberRoomDisbanded: "§e你所在的音乐室 '<room_description>§e' 已被房主解散。"
-    reload:
-      success: "§aPlayerMusic 配置已重载。"
-    info: {} # /bf info 使用硬编码格式
-
-  playurl: # 通用播放错误消息
-    preparing: "§7正在准备播放音乐..."
-    packCreationFailed: "§c无法创建音乐资源包。"
-    error: "§c播放音乐时发生错误。"
-
-  resourcePack:
-    status:
-      accepted: "§a资源包请求已接受，正在下载..."
-      successfully_loaded: "§a音乐资源包加载成功！"
-      declined: "§c你拒绝了音乐资源包。将无法播放音乐。"
-      failed: "§c音乐资源包下载失败或加载出错。"
-
-  musicRoomClosedMessage: "§7音乐室 '<description>§7' 因长时间不活动已被自动关闭。"
 ```
+
+## 语言文件 (lang-*.yml)
+
+所有游戏内消息和 GUI 文案都保存在语言文件中，默认中文为 `lang-zh.yml`（插件数据文件夹 `plugins/PlayerMusic/` 下）。
+
+*   通过 `config.yml` 的 `language` 配置项切换语言（例如 `language: "zh"` 对应 `lang-zh.yml`）。
+*   首次启动插件会自动从 jar 生成 `lang-zh.yml`，可自由编辑其中的消息。
+*   消息支持颜色代码 `&`，`<placeholder>` 会被替换为实际值。
+*   `musicFolder.lore` 等列表类文案仍在 `config.yml` 中配置。
+
 
 **重要**:
 *   `resourcePack.packFormat`: 这个值非常重要，必须与你的服务器客户端版本兼容。请查阅 Minecraft Wiki 获取最新的资源包版本信息 (例如，Paper 26.2 / Minecraft 26.2 通常是 88)。

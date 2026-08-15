@@ -27,7 +27,8 @@ public class MusicGUI {
     }
 
     public void open(Player player) {
-        String guiTitleFromConfig = plugin.getConfig().getString("gui.title", "§9音乐播放器");
+        String guiTitleFromConfig = plugin.getLangMessage("gui.title");
+        if (guiTitleFromConfig == null) guiTitleFromConfig = "§9音乐播放器";
         List<PresetSong> presetSongs = plugin.getPresetSongs();
         int totalPages = (int) Math.ceil((double) presetSongs.size() / (double) ITEMS_PER_PAGE);
         if (totalPages == 0) totalPages = 1;
@@ -48,7 +49,8 @@ public class MusicGUI {
         currentInventory.clear();
 
         if (presetSongs.isEmpty()) {
-            String noPresetsMessage = ChatColor.translateAlternateColorCodes('&', plugin.getConfig().getString("gui.noPresets", "§c没有可用的预设歌曲。"));
+            String noPresetsMessage = ChatColor.translateAlternateColorCodes('&', plugin.getLangMessage("gui.noPresets"));
+            if (noPresetsMessage == null || noPresetsMessage.equals("null")) noPresetsMessage = "§c没有可用的音乐。";
             ItemStack noSongsItem = new ItemStack(Material.BARRIER);
             ItemMeta meta = noSongsItem.getItemMeta();
             if (meta != null) {
@@ -77,11 +79,13 @@ public class MusicGUI {
         }
 
         if (currentPage > 0) {
-            String prevName = plugin.getConfig().getString("gui.prevPageName", "§c<- 上一页");
+            String prevName = plugin.getLangMessage("gui.prevPageName");
+            if (prevName == null) prevName = "§c<- 上一页";
             currentInventory.setItem(45, createNavItem(prevName, plugin.getConfig().getString("gui.prevPageItem", "ARROW")));
         }
         if (currentPage < totalPages - 1) {
-            String nextName = plugin.getConfig().getString("gui.nextPageName", "§a下一页 ->");
+            String nextName = plugin.getLangMessage("gui.nextPageName");
+            if (nextName == null) nextName = "§a下一页 ->";
             currentInventory.setItem(53, createNavItem(nextName, plugin.getConfig().getString("gui.nextPageItem", "ARROW")));
         }
     }
