@@ -62,16 +62,6 @@ public class ResourcePackGenerator {
 
 
     public CompletableFuture<PackInfo> generateAndServePack(@Nullable Player player, @NotNull String audioUrl, @NotNull String soundEventName, boolean isRoomPlayback, @Nullable MusicRoom roomContext) {
-        if (player != null && plugin.isPresetPrewarmingEnabled() && !isRoomPlayback && soundEventName.startsWith(plugin.getHttpFileServer().getServePathPrefix() + ".preset.")) {
-            ResourcePackGenerator.PackInfo prewarmedInfo = plugin.getPrewarmedPackInfo(audioUrl);
-            if (prewarmedInfo != null) {
-                plugin.getLogger().info("为玩家 " + player.getName() + " 使用预热的资源包: " + prewarmedInfo.packFileName() + " (URL: " + audioUrl + ")");
-                return CompletableFuture.completedFuture(prewarmedInfo);
-            } else {
-                plugin.getLogger().warning("预热已启用，但未找到预设歌曲 " + audioUrl + " 的预热包 (请求的 soundEvent: " + soundEventName + ")。将按需生成。");
-            }
-        }
-
         return CompletableFuture.supplyAsync(() -> {
             boolean actuallyUseMerging = plugin.shouldUseMergedPackLogic() && originalBasePackFile != null && originalBasePackFile.exists();
             if (actuallyUseMerging) {
@@ -157,9 +147,7 @@ public class ResourcePackGenerator {
         }
         String uniqueSuffix = plugin.createStableIdentifier(audioUrl + "_" + soundEventName);
         String packFileNamePrefix = "mrg_";
-        if (player == null && soundEventName.startsWith(plugin.getHttpFileServer().getServePathPrefix() + ".preset.")) {
-            packFileNamePrefix += "prewarm_preset_";
-        } else if (isRoomPlayback && roomContext != null) {
+        if (isRoomPlayback && roomContext != null) {
             packFileNamePrefix += "room_" + roomContext.getRoomId() + "_";
         } else if (player != null) {
             packFileNamePrefix += "player_" + player.getUniqueId().toString().substring(0, 8) + "_";
@@ -176,7 +164,7 @@ public class ResourcePackGenerator {
                 if (player != null) {
                     plugin.getServer().getScheduler().runTask(plugin, () -> plugin.sendConfigMsg(player, audioInfo.errorKey, "url", audioUrl));
                 } else {
-                    plugin.getLogger().warning("预热音频下载失败 (" + audioInfo.errorKey + ") for URL: " + audioUrl);
+                    plugin.getLogger().warning("音频文件处理失败 (" + audioInfo.errorKey + ") for URL: " + audioUrl);
                 }
                 if (audioInfo.audioFile.exists()) {
                     if (!audioInfo.audioFile.delete()) {
@@ -268,9 +256,7 @@ public class ResourcePackGenerator {
     private PackInfo generateIndependentPack(@Nullable Player player, @NotNull String audioUrl, @NotNull String soundEventName, boolean isRoomPlayback, @Nullable MusicRoom roomContext) {
         String uniqueSuffix = plugin.createStableIdentifier(audioUrl + "_" + soundEventName);
         String packFileNamePrefix = "ind_";
-        if (player == null && soundEventName.startsWith(plugin.getHttpFileServer().getServePathPrefix() + ".preset.")) {
-            packFileNamePrefix += "prewarm_preset_";
-        } else if (isRoomPlayback && roomContext != null) {
+        if (isRoomPlayback && roomContext != null) {
             packFileNamePrefix += "room_" + roomContext.getRoomId() + "_";
         } else if (player != null) {
             packFileNamePrefix += "player_" + player.getUniqueId().toString().substring(0, 8) + "_";
@@ -286,7 +272,7 @@ public class ResourcePackGenerator {
                 if (player != null) {
                     plugin.getServer().getScheduler().runTask(plugin, () -> plugin.sendConfigMsg(player, audioInfo.errorKey, "url", audioUrl));
                 } else {
-                    plugin.getLogger().warning("预热音频下载失败 (" + audioInfo.errorKey + ") for URL: " + audioUrl);
+                    plugin.getLogger().warning("音频文件处理失败 (" + audioInfo.errorKey + ") for URL: " + audioUrl);
                 }
                 if (audioInfo.audioFile.exists()) {
                     if(!audioInfo.audioFile.delete()){
@@ -366,11 +352,6 @@ public class ResourcePackGenerator {
 
     public void cleanupPack(String tempPackFileName) {
         if (tempPackFileName == null || tempPackFileName.isEmpty()) return;
-
-        if (plugin.isPresetPrewarmingEnabled() && plugin.isPrewarmedPackFile(tempPackFileName)) {
-            plugin.getLogger().info("跳过清理预热的资源包: " + tempPackFileName);
-            return;
-        }
 
         File packFile = new File(tempPackStorageDir, tempPackFileName);
         if (packFile.exists()) {

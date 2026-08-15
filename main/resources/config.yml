@@ -18,8 +18,6 @@ resourcePack:
   packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
   # 26.1 -> 84, 26.2 -> 88, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
   description: "§bPlayerMusic §7音乐资源包" # 资源包的描述文本
-  enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
-  # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
 
 # 基础资源包合并设置 (如果启用，插件会将音乐添加到此基础包中，而不是创建独立的音乐包)
 baseResourcePack:
@@ -47,35 +45,6 @@ musicFolder:
     - "§7自动识别的文件夹音乐"
     - "§7文件: <name>"
 
-# 预设歌曲列表
-# 每首歌曲是一个独立的配置节 (例如 'song1', 'song2')
-# name: 歌曲在GUI和命令中显示的名称 (支持颜色代码 '&')
-# url: 歌曲的 .ogg 文件直链 URL
-# item: 在GUI中代表这首歌的物品材质 (区分大小写, 参考 Spigot Material 枚举)
-# lore: 物品的描述文本列表 (支持颜色代码 '&')
-presetSongs:
-  song1:
-    name: "§e示例歌曲 1"
-    url: "https://example.com/music/song1.ogg" # 请替换为有效的 .ogg 文件链接
-    item: "MUSIC_DISC_CAT"
-    lore:
-      - "§7点击播放这首美妙的歌曲！"
-      - "§7流派: 流行"
-  song2:
-    name: "§b自定义音乐 §7(演示)"
-    url: "https://example.com/music/another_song.ogg" # 请替换为有效的 .ogg 文件链接
-    item: "MUSIC_DISC_BLOCKS"
-    lore:
-      - "§a这是一首通过配置添加的歌曲。"
-      - "§7URL: <url>" # 你可以在lore中使用 <url> 占位符，它不会被自动替换，仅作展示
-  # 你可以在这里添加更多歌曲...
-  # song3:
-  #   name: "§d史诗音乐"
-  #   url: "YOUR_OGG_FILE_DIRECT_LINK_HERE"
-  #   item: "MUSIC_DISC_MELLOHI"
-  #   lore:
-  #     - "§7感受这史诗般的旋律！"
-
 # 消息配置 (所有消息都支持颜色代码 '&')
 # <placeholder> 会被替换为实际值
 messages:
@@ -94,24 +63,22 @@ messages:
   bf: # /bf 命令相关消息
     usage: |-
       §e用法: /bf <子命令> [参数...]
-      §7可用子命令: play, playurl, stop, gui, createroom, join, start, roomplay, disbandroom, reload, rescan, info
+      §7可用子命令: play, stop, gui, createroom, join, start, roomplay, disbandroom, reload, rescan, info
     unknownCommand: "§c未知子命令。输入 /bf 获取帮助。"
     play:
       usage: "§e用法: /bf play <歌曲名称或编号>"
-      notFound: "§c未找到名为 '<song>' 的预设歌曲。"
-      preparing: "§7正在准备播放预设歌曲: <song_name>§7..."
-    playurl:
-      usage: "§e用法: /bf playurl <URL>"
+      notFound: "§c未找到名为 '<song>' 的音乐。"
+      preparing: "§7正在准备播放音乐: <song_name>§7..."
     stop:
       notPlaying: "§e你当前没有在播放任何音乐。"
       stoppedForSelf: "§a已为你停止播放音乐。"
       stoppedForSelfInRoom: "§a已为你停止在房间 '<room_description>§a' 中的音乐。"
       roomStopped: "§a音乐室 '<room_description>§a' 的音乐已停止。"
     createroom:
-      usage: "§e用法: /bf createroom <音乐URL> <房间描述>"
+      usage: "§e用法: /bf createroom <歌曲名> <房间描述>"
       noDescription: "§c请输入房间描述。"
       alreadyCreated: "§c你已经创建了一个音乐室: <room_description>§c。请先解散它。"
-      successWithStartHint: "§a音乐室 '<description>§a' 已创建！音乐URL: <url>§a。使用 §e/bf start §a来开始播放。"
+      successWithStartHint: "§a音乐室 '<description>§a' 已创建！歌曲: <url>§a。使用 §e/bf start §a来开始播放。"
       broadcast: "§e玩家 <creator_name> §e创建了音乐室: <description>"
     join:
       usage: "§e用法: /bf join <房主名称>"
@@ -124,16 +91,16 @@ messages:
     room:
       start:
         notRoomCreator: "§c你不是任何音乐室的创建者，无法启动音乐。"
-        noMusicUrl: "§c你的音乐室 '<room_description>§c' 没有设置音乐URL。"
+        noMusicUrl: "§c你的音乐室 '<room_description>§c' 没有设置歌曲。"
         startingMusic: "§7房间 '<room_description>§7' 正在准备播放音乐..."
         memberStartNotification: "§e房主 <creator_name> §e在房间 '<room_description>§e' 中开始了音乐播放！"
         started: "§a已在你的音乐室 '<room_description>§a' 中开始播放音乐。"
       play:
         notRoomCreator: "§c你不是任何音乐室的创建者，无法设置音乐。"
-        usage: "§e用法: /bf roomplay <新音乐URL>"
-        urlSet: "§a音乐室 '<room_description>§a' 的音乐URL已更新为: <url>"
-        urlSame: "§e新URL与当前音乐室 '<room_description>§e' 的URL相同。"
-        startHint: "§7使用 §e/bf start §7来播放新音乐。"
+        usage: "§e用法: /bf roomplay <歌曲名>"
+        urlSet: "§a音乐室 '<room_description>§a' 的歌曲已切换为: <url>"
+        urlSame: "§e当前歌曲与音乐室 '<room_description>§e' 的歌曲相同。"
+        startHint: "§7使用 §e/bf start §7来播放新歌曲。"
     disbandroom:
       notCreatorOrNoRoom: "§c你没有创建音乐室，或你的音乐室已被解散。"
       success: "§a音乐室 '<room_description>§a' 已成功解散。"
@@ -144,9 +111,8 @@ messages:
       success: "§a已重新扫描音乐文件夹，新识别 <count> 首歌曲。"
     info: {} # /bf info 使用硬编码格式
 
-  playurl: # /playurl 命令相关消息 (如果与 /bf playurl 不同)
-    usage: "§e用法: /playurl <URL>"
-    preparing: "§7正在准备播放URL音乐..."
+  playurl: # 通用播放错误消息
+    preparing: "§7正在准备播放音乐..."
     packCreationFailed: "§c无法创建音乐资源包。"
     error: "§c播放音乐时发生错误。"
 

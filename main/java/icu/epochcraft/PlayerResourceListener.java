@@ -198,7 +198,7 @@ public class PlayerResourceListener implements Listener {
 
             if (selectedSong != null) {
                 player.closeInventory();
-                musicCommands.handlePlay(player, selectedSong.getUrl(), MusicCommands.PlaybackContextType.PRESET, null, selectedSong);
+                musicCommands.handlePlay(player, selectedSong.getUrl(), MusicCommands.PlaybackContextType.SINGLE, null, selectedSong);
             }
         }
     }

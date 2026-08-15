@@ -8,11 +8,8 @@ description: ${project.description}
 commands:
   bf:
     description: 主音乐播放器命令。
-    usage: "/bf <play|playurl|stop|gui|createroom|join|start|roomplay|disbandroom|reload|rescan|info>"
+    usage: "/bf <play|stop|gui|createroom|join|start|roomplay|disbandroom|reload|rescan|info>"
     aliases: [music, pm]
-  playurl:
-    description: 快速播放指定URL的音乐 (仅自己听)。
-    usage: "/playurl <URL>"
   internal_join_room:
     description: Internal command to join a music room.
     usage: "/internal_join_room <roomId>"
@@ -24,9 +21,6 @@ permissions:
     default: op
   playermusic.play:
     description: 允许使用 /bf play。
-    default: true
-  playermusic.playurl:
-    description: 允许使用 /bf playurl 和 /playurl。
     default: true
   playermusic.stop:
     description: 允许使用 /bf stop。
@@ -44,7 +38,7 @@ permissions:
     description: 允许音乐室创建者使用 /bf start 播放音乐。
     default: true
   playermusic.roomplay:
-    description: 允许音乐室创建者使用 /bf roomplay 更新音乐URL。
+    description: 允许音乐室创建者使用 /bf roomplay 切换房间歌曲。
     default: true
   playermusic.disbandroom:
     description: 允许音乐室创建者使用 /bf disbandroom。

@@ -28,8 +28,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
     private final MusicPlayerPlugin plugin;
 
     public enum PlaybackContextType {
-        PRESET,
-        DIRECT_URL,
+        SINGLE,
         ROOM
     }
 
@@ -84,25 +83,13 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                         return true;
                     }
                     String songIdentifier = args[1];
-                    PresetSong preset = plugin.getPresetSongs().stream()
-                            .filter(s -> {
-                                String nameWithSections = ChatColor.translateAlternateColorCodes('&', s.getName());
-                                String strippedName = ChatColor.stripColor(nameWithSections);
-                                return strippedName.equalsIgnoreCase(songIdentifier) ||
-                                        songIdentifier.equalsIgnoreCase(String.valueOf(plugin.getPresetSongs().indexOf(s) + 1));
-                            })
-                            .findFirst().orElse(null);
-
-                    if (preset != null) {
-                        handlePlay(playerForPlay, preset.getUrl(), PlaybackContextType.PRESET, null, preset);
+                    PresetSong songToPlay = findFolderSong(songIdentifier);
+                    if (songToPlay != null) {
+                        handlePlay(playerForPlay, songToPlay.getUrl(), PlaybackContextType.SINGLE, null, songToPlay);
                     } else {
                         plugin.sendConfigMsg(playerForPlay, "messages.bf.play.notFound", "song", songIdentifier);
                     }
                     return true;
-
-                case "playurl":
-                    if (!canExecute(sender, "playermusic.playurl", true)) return true;
-                    return handlePlayUrlCommandLogic(sender, args, true);
 
                 case "stop":
                     if (!canExecute(sender, "playermusic.stop", true)) return true;
@@ -198,7 +185,13 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                         plugin.sendConfigMsg(creator, "messages.bf.createroom.usage");
                         return true;
                     }
-                    String musicUrl = args[1];
+                    String roomSongIdentifier = args[1];
+                    PresetSong roomSong = findFolderSong(roomSongIdentifier);
+                    if (roomSong == null) {
+                        plugin.sendConfigMsg(creator, "messages.bf.play.notFound", "song", roomSongIdentifier);
+                        return true;
+                    }
+                    String roomMusicUrl = roomSong.getUrl();
                     StringBuilder descriptionBuilder = new StringBuilder();
                     for (int i = 2; i < args.length; i++) {
                         descriptionBuilder.append(args[i]).append(" ");
@@ -217,10 +210,10 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                         return true;
                     }
 
-                    MusicRoom newRoom = plugin.createMusicRoom(creator, musicUrl, descriptionInput);
+                    MusicRoom newRoom = plugin.createMusicRoom(creator, roomMusicUrl, descriptionInput);
                     plugin.sendConfigMsg(creator, "messages.bf.createroom.successWithStartHint",
                             "description", newRoom.getDescription(),
-                            "url", newRoom.getMusicUrl()
+                            "url", roomSong.getName()
                     );
                     for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
                         if (!onlinePlayer.equals(creator)) {
@@ -307,7 +300,12 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                         plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.usage");
                         return true;
                     }
-                    String newMusicUrl = args[1];
+                    PresetSong newRoomSong = findFolderSong(args[1]);
+                    if (newRoomSong == null) {
+                        plugin.sendConfigMsg(roomPlayRequester, "messages.bf.play.notFound", "song", args[1]);
+                        return true;
+                    }
+                    String newMusicUrl = newRoomSong.getUrl();
                     if (newMusicUrl.equalsIgnoreCase(ownRoom.getMusicUrl())) {
                         plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.urlSame", "room_description", ownRoom.getDescription());
                         return true;
@@ -336,7 +334,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     }
                     ownRoom.setMusicUrl(newMusicUrl);
                     plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.urlSet",
-                            "room_description", ownRoom.getDescription(), "url", newMusicUrl);
+                            "room_description", ownRoom.getDescription(), "url", newRoomSong.getName());
                     plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.startHint");
                     return true;
 
@@ -380,7 +378,6 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     sender.sendMessage(ChatColor.AQUA + "作者: " + ChatColor.WHITE + String.join(", ", pdf.getAuthors()));
                     sender.sendMessage(ChatColor.AQUA + "版本: " + ChatColor.WHITE + pdf.getVersion());
                     sender.sendMessage(ChatColor.AQUA + "描述: " + ChatColor.WHITE + (pdf.getDescription() != null ? pdf.getDescription() : "N/A"));
-                    sender.sendMessage(ChatColor.AQUA + "预设预热: " + ChatColor.WHITE + (plugin.isPresetPrewarmingEnabled() ? "开启" : "关闭"));
                     sender.sendMessage(ChatColor.GOLD + "-----------------------------");
                     return true;
 
@@ -388,9 +385,6 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     plugin.sendConfigMsg(sender, "messages.bf.unknownCommand");
                     return true;
             }
-        } else if (command.getName().equalsIgnoreCase("playurl")) {
-            if (!canExecute(sender, "playermusic.playurl", true)) return true;
-            return handlePlayUrlCommandLogic(sender, args, false);
         } else if (command.getName().equalsIgnoreCase("internal_join_room")) {
             if (!(sender instanceof Player playerToJoin)) return true;
             if (args.length < 1) return true;
@@ -415,22 +409,17 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
         return false;
     }
 
-    private boolean handlePlayUrlCommandLogic(CommandSender sender, String[] args, boolean isFromBfCommand) {
-        if (!(sender instanceof Player player)) return true;
-        String urlToPlay;
-        if (isFromBfCommand) {
-            if (args.length < 2) {
-                plugin.sendConfigMsg(player, "messages.bf.playurl.usage"); return true;
-            }
-            urlToPlay = args[1];
-        } else {
-            if (args.length < 1) {
-                plugin.sendConfigMsg(player, "messages.playurl.usage"); return true;
-            }
-            urlToPlay = args[0];
-        }
-        handlePlay(player, urlToPlay, PlaybackContextType.DIRECT_URL, null, null);
-        return true;
+    /** 从音乐文件夹的歌曲列表中按名称或序号查找歌曲 */
+    @Nullable
+    private PresetSong findFolderSong(String identifier) {
+        return plugin.getPresetSongs().stream()
+                .filter(s -> {
+                    String nameWithSections = ChatColor.translateAlternateColorCodes('&', s.getName());
+                    String strippedName = ChatColor.stripColor(nameWithSections);
+                    return strippedName.equalsIgnoreCase(identifier) ||
+                            identifier.equalsIgnoreCase(String.valueOf(plugin.getPresetSongs().indexOf(s) + 1));
+                })
+                .findFirst().orElse(null);
     }
 
     public void handlePlay(Player player, String url, PlaybackContextType contextType, @Nullable MusicRoom roomContext, @Nullable PresetSong presetContext) {
@@ -473,7 +462,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
 
         String soundEventName;
 
-        if (contextType == PlaybackContextType.PRESET && presetContext != null) {
+        if (contextType == PlaybackContextType.SINGLE && presetContext != null) {
             soundEventName = plugin.getHttpFileServer().getServePathPrefix() + ".preset." + plugin.createStableIdentifier(presetContext.getUrl());
             plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", ChatColor.translateAlternateColorCodes('&', presetContext.getName()));
         } else if (contextType == PlaybackContextType.ROOM && roomContext != null) {
@@ -483,7 +472,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
             String randomId = UUID.randomUUID().toString().substring(0, 4);
             String uniquePlayerIdPart = player.getUniqueId().toString().substring(0, 8);
             soundEventName = plugin.getHttpFileServer().getServePathPrefix() + ".single." + uniquePlayerIdPart + "." + randomId;
-            plugin.sendConfigMsg(player, "messages.playurl.preparing");
+            plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", "音乐");
         }
 
         plugin.getResourcePackGenerator().generateAndServePack(player, url, soundEventName, contextType == PlaybackContextType.ROOM, roomContext)
@@ -534,7 +523,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
         if (command.getName().equalsIgnoreCase("bf")) {
             if (args.length == 1) {
                 String input = args[0].toLowerCase();
-                List<String> subCommands = new ArrayList<>(List.of("play", "stop", "gui", "playurl", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"));
+                List<String> subCommands = new ArrayList<>(List.of("play", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"));
                 if (sender instanceof Player p) {
                     subCommands.removeIf(cmd -> {
                         String perm = "playermusic." + cmd;
@@ -550,43 +539,36 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                 String subCommand = args[0].toLowerCase();
                 String input = args[1].toLowerCase();
                 if (subCommand.equals("play") && sender.hasPermission("playermusic.play")) {
-                    plugin.getPresetSongs().forEach(song -> {
-                        String songIndexStr = String.valueOf(plugin.getPresetSongs().indexOf(song) + 1);
-                        if (songIndexStr.startsWith(input)) {
-                            completions.add(songIndexStr);
-                        }
-                        String cleanName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', song.getName())).replace(" ", "_");
-                        if (cleanName.toLowerCase().startsWith(input)) {
-                            completions.add(cleanName);
-                        }
-                    });
+                    addSongCompletions(completions, input);
                 } else if (subCommand.equals("join") && sender.hasPermission("playermusic.joinroom")) {
                     plugin.getActiveMusicRoomsView().stream()
                             .map(room -> room.getCreator().getName())
                             .filter(name -> name.toLowerCase().startsWith(input))
                             .distinct()
                             .forEach(completions::add);
-                } else if ((subCommand.equals("playurl") && sender.hasPermission("playermusic.playurl")) ||
-                        (subCommand.equals("roomplay") && sender.hasPermission("playermusic.room.roomplay")) ||
-                        (subCommand.equals("createroom") && sender.hasPermission("playermusic.createroom") && args.length == 2 ) ) {
-                    if (input.isEmpty() || input.startsWith("http")) {
-                        completions.add("http://");
-                        completions.add("https://");
-                    }
+                } else if (subCommand.equals("roomplay") && sender.hasPermission("playermusic.room.roomplay")) {
+                    addSongCompletions(completions, input);
+                } else if (subCommand.equals("createroom") && sender.hasPermission("playermusic.createroom")) {
+                    addSongCompletions(completions, input);
                 }
             } else if (args.length == 3 && args[0].equalsIgnoreCase("createroom") && sender.hasPermission("playermusic.createroom")) {
                 completions.add("<房间描述>");
             }
-        } else if (command.getName().equalsIgnoreCase("playurl") && args.length == 1) {
-            if (sender.hasPermission("playermusic.playurl")) {
-                String input = args[0].toLowerCase();
-                if (input.isEmpty() || input.startsWith("http")) {
-                    completions.add("http://");
-                    completions.add("https://");
-                }
-            }
         }
         return completions.stream().distinct().collect(Collectors.toList());
+    }
+
+    private void addSongCompletions(List<String> completions, String input) {
+        plugin.getPresetSongs().forEach(song -> {
+            String songIndexStr = String.valueOf(plugin.getPresetSongs().indexOf(song) + 1);
+            if (songIndexStr.startsWith(input)) {
+                completions.add(songIndexStr);
+            }
+            String cleanName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', song.getName())).replace(" ", "_");
+            if (cleanName.toLowerCase().startsWith(input)) {
+                completions.add(cleanName);
+            }
+        });
     }
 
     private void addMatchingCompletions(List<String> completions, String input, String... options) {

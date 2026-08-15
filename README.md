@@ -15,21 +15,18 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 
 ## 主要功能
 
-*   **URL 音乐播放**: 直接通过 URL 播放 .ogg 格式的音乐。
 *   **文件夹音乐自动识别**: 将 `.ogg` 文件放入音乐文件夹，插件自动扫描识别为可播放歌曲，无需手动配置 URL。
-*   **预设歌曲列表**: 在配置文件中预设常用歌曲，方便快速播放。
 *   **动态资源包生成**:
     *   **独立模式**: 为每个播放请求动态生成一个包含单首音乐的资源包。
     *   **合并模式 (可选)**: 将音乐动态添加到服务器配置的基础资源包中，减少客户端切换资源包的频率。
-    *   **资源包预热 (可选)**: 为预设歌曲提前生成资源包，加快播放加载速度。
 *   **内置 HTTP 服务器**: 用于托管动态生成的资源包，无需外部Web服务器。
 *   **音乐房间**:
     *   玩家可以创建音乐房间，并邀请其他玩家加入。
     *   房间创建者可以控制音乐的播放、切换和停止。
     *   房间内的所有成员将同步收听相同的音乐。
-*   **图形用户界面 (GUI)**: 通过 `/bf gui` 命令打开一个简单的界面，方便选择预设歌曲。
+*   **图形用户界面 (GUI)**: 通过 `/bf gui` 命令打开一个简单的界面，方便选择音乐。
 *   **权限管理**: 精细的权限节点控制各项功能的使用。
-*   **高度可配置**: 通过 `config.yml` 自定义消息、资源包参数、HTTP 服务器等。
+*   **播放日志文件**: 播放过程日志写入 `player.log`，不刷服务器控制台。
 *   **音量控制**: 播放的音乐遵循客户端的“音乐”音量设置。
 
 ## 要求与依赖
@@ -72,8 +69,6 @@ resourcePack:
   packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
                 # 26.1 -> 84, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
   description: "§bPlayerMusic §7音乐资源包" # 资源包的描述文本
-  enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
-                               # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
 
 # 基础资源包合并设置 (如果启用，插件会将音乐添加到此基础包中，而不是创建独立的音乐包)
 baseResourcePack:
@@ -82,7 +77,7 @@ baseResourcePack:
   promptMessage: "§6加载音乐资源包..." # 发送合并后的音乐资源包给玩家时显示的提示信息
   originalPackPromptMessage: "§6恢复默认资源包..." # 当停止音乐并恢复到原始基础包时显示的提示信息
 
-# 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
+# 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需手动配置 URL)
 musicFolder:
   enabled: true # 是否启用文件夹音乐自动识别 (true/false)
   path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/PlayerMusic/music)
@@ -95,40 +90,11 @@ musicFolder:
 # GUI 相关设置
 gui:
   title: "§9音乐播放器" # GUI 的标题
-  noPresets: "§c没有可用的预设歌曲。" # 当没有预设歌曲时在GUI中显示的消息
+  noPresets: "§c没有可用的音乐。" # 当没有音乐时在GUI中显示的消息
   prevPageName: "§c<- 上一页" # 上一页按钮的名称
   nextPageName: "§a下一页 ->" # 下一页按钮的名称
   prevPageItem: "ARROW" # 上一页按钮的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   nextPageItem: "ARROW" # 下一页按钮的物品材质
-
-# 预设歌曲列表
-# 每首歌曲是一个独立的配置节 (例如 'song1', 'song2')
-# name: 歌曲在GUI和命令中显示的名称 (支持颜色代码 '&')
-# url: 歌曲的 .ogg 文件直链 URL
-# item: 在GUI中代表这首歌的物品材质 (区分大小写, 参考 Spigot Material 枚举)
-# lore: 物品的描述文本列表 (支持颜色代码 '&')
-presetSongs:
-  song1:
-    name: "§e示例歌曲 1"
-    url: "https://example.com/music/song1.ogg" # 请替换为有效的 .ogg 文件链接
-    item: "MUSIC_DISC_CAT"
-    lore:
-      - "§7点击播放这首美妙的歌曲！"
-      - "§7流派: 流行"
-  song2:
-    name: "§b自定义音乐 §7(演示)"
-    url: "https://example.com/music/another_song.ogg" # 请替换为有效的 .ogg 文件链接
-    item: "MUSIC_DISC_BLOCKS"
-    lore:
-      - "§a这是一首通过配置添加的歌曲。"
-      - "§7URL: <url>" # 你可以在lore中使用 <url> 占位符，它不会被自动替换，仅作展示
-  # 你可以在这里添加更多歌曲...
-  # song3:
-  #   name: "§d史诗音乐"
-  #   url: "YOUR_OGG_FILE_DIRECT_LINK_HERE"
-  #   item: "MUSIC_DISC_MELLOHI"
-  #   lore:
-  #     - "§7感受这史诗般的旋律！"
 
 # 消息配置 (所有消息都支持颜色代码 '&')
 # <placeholder> 会被替换为实际值
@@ -147,24 +113,22 @@ messages:
   bf: # /bf 命令相关消息
     usage: |-
       §e用法: /bf <子命令> [参数...]
-      §7可用子命令: play, playurl, stop, gui, createroom, join, start, roomplay, disbandroom, reload, info
+      §7可用子命令: play, stop, gui, createroom, join, start, roomplay, disbandroom, reload, rescan, info
     unknownCommand: "§c未知子命令。输入 /bf 获取帮助。"
     play:
       usage: "§e用法: /bf play <歌曲名称或编号>"
-      notFound: "§c未找到名为 '<song>' 的预设歌曲。"
-      preparing: "§7正在准备播放预设歌曲: <song_name>§7..."
-    playurl:
-      usage: "§e用法: /bf playurl <URL>"
+      notFound: "§c未找到名为 '<song>' 的音乐。"
+      preparing: "§7正在准备播放音乐: <song_name>§7..."
     stop:
       notPlaying: "§e你当前没有在播放任何音乐。"
       stoppedForSelf: "§a已为你停止播放音乐。"
       stoppedForSelfInRoom: "§a已为你停止在房间 '<room_description>§a' 中的音乐。"
       roomStopped: "§a音乐室 '<room_description>§a' 的音乐已停止。"
     createroom:
-      usage: "§e用法: /bf createroom <音乐URL> <房间描述>"
+      usage: "§e用法: /bf createroom <歌曲名> <房间描述>"
       noDescription: "§c请输入房间描述。"
       alreadyCreated: "§c你已经创建了一个音乐室: <room_description>§c。请先解散它。"
-      successWithStartHint: "§a音乐室 '<description>§a' 已创建！音乐URL: <url>§a。使用 §e/bf start §a来开始播放。"
+      successWithStartHint: "§a音乐室 '<description>§a' 已创建！歌曲: <url>§a。使用 §e/bf start §a来开始播放。"
       broadcast: "§e玩家 <creator_name> §e创建了音乐室: <description>"
     join:
       usage: "§e用法: /bf join <房主名称>"
@@ -177,16 +141,16 @@ messages:
     room:
       start:
         notRoomCreator: "§c你不是任何音乐室的创建者，无法启动音乐。"
-        noMusicUrl: "§c你的音乐室 '<room_description>§c' 没有设置音乐URL。"
+        noMusicUrl: "§c你的音乐室 '<room_description>§c' 没有设置歌曲。"
         startingMusic: "§7房间 '<room_description>§7' 正在准备播放音乐..."
         memberStartNotification: "§e房主 <creator_name> §e在房间 '<room_description>§e' 中开始了音乐播放！"
         started: "§a已在你的音乐室 '<room_description>§a' 中开始播放音乐。"
       play:
         notRoomCreator: "§c你不是任何音乐室的创建者，无法设置音乐。"
-        usage: "§e用法: /bf roomplay <新音乐URL>"
-        urlSet: "§a音乐室 '<room_description>§a' 的音乐URL已更新为: <url>"
-        urlSame: "§e新URL与当前音乐室 '<room_description>§e' 的URL相同。"
-        startHint: "§7使用 §e/bf start §7来播放新音乐。"
+        usage: "§e用法: /bf roomplay <歌曲名>"
+        urlSet: "§a音乐室 '<room_description>§a' 的歌曲已切换为: <url>"
+        urlSame: "§e当前歌曲与音乐室 '<room_description>§e' 的歌曲相同。"
+        startHint: "§7使用 §e/bf start §7来播放新歌曲。"
     disbandroom:
       notCreatorOrNoRoom: "§c你没有创建音乐室，或你的音乐室已被解散。"
       success: "§a音乐室 '<room_description>§a' 已成功解散。"
@@ -195,9 +159,8 @@ messages:
       success: "§aPlayerMusic 配置已重载。"
     info: {} # /bf info 使用硬编码格式
 
-  playurl: # /playurl 命令相关消息 (如果与 /bf playurl 不同)
-    usage: "§e用法: /playurl <URL>"
-    preparing: "§7正在准备播放URL音乐..."
+  playurl: # 通用播放错误消息
+    preparing: "§7正在准备播放音乐..."
     packCreationFailed: "§c无法创建音乐资源包。"
     error: "§c播放音乐时发生错误。"
 
@@ -215,7 +178,6 @@ messages:
 *   `resourcePack.packFormat`: 这个值非常重要，必须与你的服务器客户端版本兼容。请查阅 Minecraft Wiki 获取最新的资源包版本信息 (例如，Paper 26.2 / Minecraft 26.2 通常是 88)。
 *   `httpServer.publicAddress`: 如果服务器在NAT网络后（例如家庭网络），留空或使用 `auto` 可能无法正确检测到公网IP。你需要手动配置为你的公网IP或域名，否则玩家可能无法下载资源包。确保配置的 `httpServer.port` 在防火墙和路由器上是开放的。
 *   `baseResourcePack.enableMerging`: 如果设置为 `true`，你必须在 `plugins/PlayerMusic/` 目录下放置一个名为 `baseResourcePack.fileName` 指定的有效基础资源包文件。
-*   `resourcePack.enablePresetPrewarming`: 设置为 `true` 以在插件启动时为预设歌曲生成资源包，加快后续播放速度。
 
 ## 命令与权限
 
@@ -223,23 +185,22 @@ messages:
 
 | 命令                                            | 描述                                           | 权限节点                             |
 | :---------------------------------------------- | :--------------------------------------------- | :----------------------------------- |
-| `/bf play <歌曲名 或 序号>`                       | 播放预设列表中的歌曲。                             | `playermusic.play`               |
-| `/bf playurl <URL>`                             | 直接播放指定 URL 的音乐。                        | `playermusic.playurl`            |
-| `/playurl <URL>`                                | `/bf playurl` 的别名。                         | `playermusic.playurl`            |
+| `/bf play <歌曲名 或 序号>`                       | 播放音乐文件夹中的歌曲。                           | `playermusic.play`               |
 | `/bf stop`                                      | 停止当前为自己播放的音乐，或停止自己创建的房间音乐。 | `playermusic.stop`               |
-| `/bf gui`                                       | 打开预设歌曲选择GUI。                            | `playermusic.gui`                |
-| `/bf createroom <URL> <房间描述>`                 | 创建一个音乐房间。                               | `playermusic.createroom`         |
+| `/bf gui`                                       | 打开音乐选择GUI。                                | `playermusic.gui`                |
+| `/bf createroom <歌曲名> <房间描述>`              | 创建一个音乐房间。                               | `playermusic.createroom`         |
 | `/bf join <房间创建者名称>`                       | 加入一个已存在的音乐房间。                         | `playermusic.joinroom`           |
-| `/bf start`                                     | (房间创建者) 开始播放当前房间设置的音乐。          | `playermusic.room.start`         |
-| `/bf roomplay <新URL>`                          | (房间创建者) 更改当前房间的音乐URL。             | `playermusic.roomplay`           |
+| `/bf start`                                     | (房间创建者) 开始播放当前房间设置的歌曲。          | `playermusic.room.start`         |
+| `/bf roomplay <歌曲名>`                          | (房间创建者) 切换当前房间的歌曲。                 | `playermusic.roomplay`           |
 | `/bf disbandroom`                               | (房间创建者) 解散自己创建的音乐房间。              | `playermusic.disbandroom`        |
 | `/bf reload`                                    | 重载插件配置文件。                               | `playermusic.reload`             |
+| `/bf rescan`                                    | 重新扫描音乐文件夹。                              | `playermusic.reload`             |
 | `/bf info`                                      | 显示插件信息。                                   | `playermusic.info`               |
 
 ## 工作原理简述
 
 1.  **资源包生成**:
-    *   当玩家请求播放音乐时（或在预热功能开启时），插件会根据配置（独立模式或合并模式）动态生成一个临时的资源包。
+    *   当玩家请求播放音乐时，插件会根据配置（独立模式或合并模式）动态生成一个临时的资源包。
     *   这个资源包包含一个 `sounds.json` 文件，用于定义新的声音事件，并将该事件指向要播放的音乐文件。
     *   音乐文件（.ogg 格式）会从提供的 URL 下载到服务器的临时存储中，然后打包进资源包。
 2.  **HTTP 服务器**:
@@ -257,7 +218,7 @@ messages:
     *   检查服务器控制台是否有错误信息。
     *   确认客户端已成功接受并加载了资源包（通常会有提示）。
     *   检查游戏内的“音乐”音量滑块和“主音量”滑块是否已调高。
-    *   确保音乐 URL 指向的是有效的 `.ogg` 文件，并且服务器可以访问该 URL。
+    *   确保音乐文件夹中的 `.ogg` 文件格式有效且完整。
 *   **提示 "HTTP Server Disabled"**:
     *   检查 `config.yml` 中的 `httpServer.enabled` 是否为 `true`。
     *   检查 `httpServer.port` 是否被其他程序占用。
@@ -266,10 +227,10 @@ messages:
 *   **玩家无法下载资源包**:
     *   确认 `config.yml` 中的 `httpServer.publicAddress` 设置正确（对于公网服务器，应为服务器的公网IP或域名）。
     *   确认 `httpServer.port` 已在服务器防火墙和路由器（如果适用）中开放。
-*   **预热功能未按预期工作**:
-    *   确保 `config.yml` 中 `resourcePack.enablePresetPrewarming` 设置为 `true`。
-    *   检查服务器启动日志中是否有关于预热成功或失败的消息。
-    *   确认预设歌曲的 URL 是有效的，并且服务器可以访问它们。
+*   **音乐文件夹中的歌曲未识别**:
+    *   确认 `.ogg` 文件已放入 `plugins/PlayerMusic/music/` 目录（或 `musicFolder.path` 指定的目录）。
+    *   执行 `/bf rescan` 或 `/bf reload` 重新扫描音乐文件夹。
+    *   检查 `config.yml` 中 `musicFolder.enabled` 是否为 `true`。
 
 ## 作者
 
@@ -279,5 +240,3 @@ PlayerMusic 由 **ALingqing** 开发。
 
 ## 许可证
 本项目采用 [知识共享署名-非商业性使用4.0 国际许可证]（https://creativecommons.org/licenses/by-nc/4.0/） 进行许可。
-
-## 支持我的闲鱼店铺 【闲鱼】https://m.tb.cn/h.6nA3DRE?tk=7ACpVUFVHJa MF937 「这是我的闲鱼号，快来看看吧～」 点击链接直接打开

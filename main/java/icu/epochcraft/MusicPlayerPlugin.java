@@ -10,7 +10,6 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,15 +18,19 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.stream.Collectors;
 
 public class MusicPlayerPlugin extends JavaPlugin {
@@ -35,6 +38,11 @@ public class MusicPlayerPlugin extends JavaPlugin {
     private MusicCommands musicCommands;
     private HttpFileServer httpFileServer;
     private ResourcePackGenerator resourcePackGenerator;
+
+    /** 日志文件写入器（播放过程日志，不输出到控制台） */
+    private PrintWriter logFileWriter;
+    /** 是否已安装日志文件 handler */
+    private boolean logFileHandlerInstalled = false;
 
     private final Map<UUID, PendingOnlineSound> pendingSingleUserSounds = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerPendingPackType = new ConcurrentHashMap<>();
@@ -54,9 +62,6 @@ public class MusicPlayerPlugin extends JavaPlugin {
     private String originalPackPromptMessage = "";
     private String basePackSha1 = null;
 
-    private final Map<String, ResourcePackGenerator.PackInfo> prewarmedPresetPacks = new ConcurrentHashMap<>();
-    private boolean presetPrewarmingEnabled = false;
-
     public record PendingOnlineSound(String packFileName, String soundEventName, String sha1, Player targetPlayer, String packUrl) {}
 
     @Override
@@ -68,14 +73,12 @@ public class MusicPlayerPlugin extends JavaPlugin {
                 getLogger().severe("无法创建插件数据文件夹: " + getDataFolder().getAbsolutePath() + " - 插件功能可能受限!");
             }
         }
+        installLogFileHandler();
         saveDefaultConfig();
         loadConfiguration();
 
         if (getConfig().getBoolean("httpServer.enabled", false)) {
             initializeHttpServerAndGenerator();
-            if (this.resourcePackGenerator != null && isPresetPrewarmingEnabled()) {
-                initializePresetPrewarming();
-            }
         } else {
             getLogger().info("内置 HTTP 服务器已在配置中禁用。在线播放功能将不可用。");
         }
@@ -90,20 +93,76 @@ public class MusicPlayerPlugin extends JavaPlugin {
             bfCommand.setTabCompleter(musicCommands);
         } else { getLogger().severe("无法获取指令 'bf'！"); }
 
-        PluginCommand playUrlCommand = getCommand("playurl");
-        if (playUrlCommand != null) {
-            playUrlCommand.setExecutor(musicCommands);
-            playUrlCommand.setTabCompleter(musicCommands);
-        } else { getLogger().severe("无法获取指令 'playurl'！"); }
-
         PluginCommand internalJoinRoomCmd = getCommand("internal_join_room");
         if (internalJoinRoomCmd != null) {
             internalJoinRoomCmd.setExecutor(musicCommands);
         } else { getLogger().severe("无法获取指令 'internal_join_room'！");}
 
         startRoomCleanupTask();
-        getLogger().info(getName() + " 已成功启用！(资源包模式: " + (useMergedPackLogic ? "合并基础包" : "独立音乐包") +
-                ", 预设预热: " + (isPresetPrewarmingEnabled() ? "开启" : "关闭") + ")");
+        getLogger().info(getName() + " 已成功启用！(资源包模式: " + (useMergedPackLogic ? "合并基础包" : "独立音乐包") + ")");
+    }
+
+    /**
+     * 安装日志 handler：
+     * - 播放过程相关的 INFO 日志（播放音乐/创建清理资源包/扫描音乐等）只写入 player.log，不再刷控制台
+     * - WARNING / SEVERE 及非播放类日志仍正常输出到控制台
+     * 实现：接管插件 logger 的输出（setUseParentHandlers(false)），自行分发给控制台与文件。
+     */
+    private void installLogFileHandler() {
+        if (logFileHandlerInstalled) return;
+        try {
+            File logFile = new File(getDataFolder(), "player.log");
+            logFileWriter = new PrintWriter(new FileWriter(logFile, true), true);
+        } catch (IOException e) {
+            getLogger().log(Level.WARNING, "无法创建日志文件 player.log，播放日志将不写入文件。", e);
+            return;
+        }
+
+        Handler dispatchHandler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                String msg = record.getMessage();
+                if (msg == null) return;
+
+                // 播放过程日志：只写文件，不输出到控制台
+                if (record.getLevel() == Level.INFO && isPlaybackLogMessage(msg)) {
+                    synchronized (MusicPlayerPlugin.this) {
+                        if (logFileWriter != null) {
+                            String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(record.getMillis()));
+                            logFileWriter.println("[" + time + "] " + msg);
+                        }
+                    }
+                    return;
+                }
+
+                // 其余日志：输出到控制台（带插件前缀，与 Bukkit 风格一致）
+                String consoleMsg = "[" + getName() + "] " + msg;
+                if (record.getLevel() == Level.SEVERE) {
+                    System.err.println(consoleMsg);
+                } else {
+                    System.out.println(consoleMsg);
+                }
+            }
+
+            @Override
+            public void flush() { if (logFileWriter != null) logFileWriter.flush(); }
+
+            @Override
+            public void close() { flush(); }
+        };
+
+        getLogger().addHandler(dispatchHandler);
+        getLogger().setUseParentHandlers(false); // 不再经由父 logger 输出，由上面的 handler 统一分发
+        logFileHandlerInstalled = true;
+        getLogger().info("播放日志将写入 " + new File(getDataFolder(), "player.log").getPath());
+    }
+
+    /** 判断某条 INFO 日志是否属于"播放过程"（应写入文件且不刷控制台） */
+    private boolean isPlaybackLogMessage(String msg) {
+        return msg.contains("播放独立") || msg.contains("播放房间") || msg.contains("播放预设")
+                || msg.contains("已创建独立的资源包") || msg.contains("已创建合并的资源包")
+                || msg.contains("已清理临时资源包") || msg.contains("自动识别音乐文件")
+                || msg.contains("已从音乐文件夹") || msg.contains("播放音乐");
     }
 
     private void initializeHttpServerAndGenerator() {
@@ -143,8 +202,6 @@ public class MusicPlayerPlugin extends JavaPlugin {
         reloadConfig();
         FileConfiguration config = getConfig();
 
-        this.presetPrewarmingEnabled = config.getBoolean("resourcePack.enablePresetPrewarming", false);
-
         boolean mergingEnabledByConfig = config.getBoolean("baseResourcePack.enableMerging", false);
         this.basePackFileNameConfig = config.getString("baseResourcePack.fileName", "base_pack.zip");
         this.basePackFile = new File(getDataFolder(), this.basePackFileNameConfig);
@@ -172,31 +229,8 @@ public class MusicPlayerPlugin extends JavaPlugin {
         this.basePackPromptMessage = ChatColor.translateAlternateColorCodes('&', config.getString("baseResourcePack.promptMessage", "§6加载音乐资源包..."));
         this.originalPackPromptMessage = ChatColor.translateAlternateColorCodes('&', config.getString("baseResourcePack.originalPackPromptMessage", "§6恢复服务器默认资源包..."));
 
-        presetSongsList.clear();
-        ConfigurationSection presetSongsSection = config.getConfigurationSection("presetSongs");
-        if (presetSongsSection != null) {
-            for (String key : presetSongsSection.getKeys(false)) {
-                ConfigurationSection songSection = presetSongsSection.getConfigurationSection(key);
-                if (songSection != null) {
-                    String name = songSection.getString("name", "未命名歌曲");
-                    String url = songSection.getString("url");
-                    String materialName = songSection.getString("item", "NOTE_BLOCK").toUpperCase();
-                    Material material = Material.getMaterial(materialName);
-                    if (material == null) {
-                        getLogger().warning("预设歌曲 '" + name + "' 的物品材质 '" + materialName + "' 无效。将使用默认的 NOTE_BLOCK。");
-                        material = Material.NOTE_BLOCK;
-                    }
-                    List<String> lore = songSection.getStringList("lore");
-                    if (url != null && !url.isEmpty()) {
-                        presetSongsList.add(new PresetSong(name, url, material, lore));
-                    } else {
-                        getLogger().warning("预设歌曲 '" + ChatColor.translateAlternateColorCodes('&', name) + "' 缺少 URL，已被跳过。");
-                    }
-                }
-            }
-        }
         loadMusicFolderSongs(config);
-        getLogger().info("已加载 " + presetSongsList.size() + " 首预设歌曲。");
+        getLogger().info("已加载 " + presetSongsList.size() + " 首音乐。");
     }
 
     /**
@@ -274,42 +308,6 @@ public class MusicPlayerPlugin extends JavaPlugin {
         return presetSongsList.size() - before;
     }
 
-    private void initializePresetPrewarming() {
-        if (!isPresetPrewarmingEnabled() || resourcePackGenerator == null || httpFileServer == null || !httpFileServer.isRunning()) {
-            getLogger().info("预设歌曲预热已禁用或必要组件未就绪。");
-            prewarmedPresetPacks.clear();
-            return;
-        }
-
-        getLogger().info("开始预设歌曲资源包预热...");
-        prewarmedPresetPacks.clear();
-
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-        for (PresetSong song : getPresetSongs()) {
-            String stableIdentifier = createStableIdentifier(song.getUrl());
-            String soundEventName = getHttpFileServer().getServePathPrefix() + ".preset." + stableIdentifier;
-
-            CompletableFuture<Void> future = resourcePackGenerator.generateAndServePack(null, song.getUrl(), soundEventName, false, null)
-                    .thenAccept(packInfo -> {
-                        if (packInfo != null) {
-                            prewarmedPresetPacks.put(song.getUrl(), packInfo);
-                            getLogger().info("预热成功: " + song.getName() + " -> " + packInfo.packFileName());
-                        } else {
-                            getLogger().warning("预热失败: " + song.getName() + " (URL: " + song.getUrl() + ")");
-                        }
-                    }).exceptionally(ex -> {
-                        getLogger().log(Level.SEVERE, "预热预设歌曲 " + song.getName() + " 时发生异常: " + ex.getMessage(), ex);
-                        return null;
-                    });
-            futures.add(future);
-        }
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenRun(() -> {
-            getLogger().info("预设歌曲资源包预热完成。共预热 " + prewarmedPresetPacks.size() + "/" + getPresetSongs().size() + " 个资源包。");
-        });
-    }
-
 
     @Override
     public void onDisable() {
@@ -344,6 +342,16 @@ public class MusicPlayerPlugin extends JavaPlugin {
         playerPendingPackType.clear();
         playerPackRequestIds.clear();
 
+        // 关闭日志文件写入器
+        synchronized (this) {
+            if (logFileWriter != null) {
+                logFileWriter.flush();
+                logFileWriter.close();
+                logFileWriter = null;
+            }
+        }
+        logFileHandlerInstalled = false;
+
         getLogger().info(getName() + " 已被禁用。");
     }
 
@@ -358,41 +366,15 @@ public class MusicPlayerPlugin extends JavaPlugin {
 
         if (getConfig().getBoolean("httpServer.enabled", false)) {
             initializeHttpServerAndGenerator();
-            if (this.resourcePackGenerator != null && isPresetPrewarmingEnabled()) {
-                initializePresetPrewarming();
-            } else {
-                prewarmedPresetPacks.values().forEach(packInfo -> {
-                    File baseDir;
-                    if (resourcePackGenerator != null) {
-                        baseDir = resourcePackGenerator.getTempPackStorageDir();
-                    } else {
-                        baseDir = new File(getDataFolder(), getConfig().getString("httpServer.tempDirectory", "temp_packs"));
-                    }
-                    File packFile = new File(baseDir, packInfo.packFileName());
-                    if(packFile.exists() && !packFile.delete()){
-                        getLogger().warning("重载配置并禁用预热后，无法删除旧的预热包: " + packInfo.packFileName());
-                    }
-                });
-                prewarmedPresetPacks.clear();
-                getLogger().info("预设歌曲预热已在重载后禁用，任何旧的预热包信息已清除。");
-            }
         } else {
             getLogger().info("HTTP 服务器在重载后仍为禁用状态。");
-            prewarmedPresetPacks.values().forEach(packInfo -> {
-                File packFile = new File(new File(getDataFolder(), getConfig().getString("httpServer.tempDirectory", "temp_packs")), packInfo.packFileName());
-                if(packFile.exists() && !packFile.delete()){
-                    getLogger().warning("重载配置并禁用HTTP服务后，无法删除旧的预热包: " + packInfo.packFileName());
-                }
-            });
-            prewarmedPresetPacks.clear();
         }
 
         if (roomCleanupTask != null && !roomCleanupTask.isCancelled()) {
             roomCleanupTask.cancel();
         }
         startRoomCleanupTask();
-        getLogger().info(getName() + " 的配置已重载。(资源包模式: " + (useMergedPackLogic ? "合并基础包" : "独立音乐包") +
-                ", 预设预热: " + (isPresetPrewarmingEnabled() ? "开启" : "关闭") + ")");
+        getLogger().info(getName() + " 的配置已重载。(资源包模式: " + (useMergedPackLogic ? "合并基础包" : "独立音乐包") + ")");
     }
 
     public ResourcePackGenerator getResourcePackGenerator() { return resourcePackGenerator; }
@@ -404,18 +386,8 @@ public class MusicPlayerPlugin extends JavaPlugin {
     public String getMusicPackPromptMessage() { return basePackPromptMessage; }
     public String getOriginalPackPromptMessage() { return useMergedPackLogic ? originalPackPromptMessage : ""; }
 
-    public boolean isPresetPrewarmingEnabled() {
-        return presetPrewarmingEnabled;
-    }
-
-    @Nullable
-    public ResourcePackGenerator.PackInfo getPrewarmedPackInfo(String songUrl) {
-        return prewarmedPresetPacks.get(songUrl);
-    }
-
     public boolean isPrewarmedPackFile(String packFileName) {
-        if (packFileName == null) return false;
-        return prewarmedPresetPacks.values().stream().anyMatch(info -> packFileName.equals(info.packFileName()));
+        return false; // 预热功能已移除，任何临时包都不视为"预热包"
     }
 
     public String createStableIdentifier(String input) {
