@@ -401,7 +401,6 @@ public class MusicPlayerPlugin extends JavaPlugin {
     public boolean shouldUseMergedPackLogic() { return useMergedPackLogic; }
 
     public @Nullable File getBasePackFile() { return useMergedPackLogic ? basePackFile : null; }
-    public @Nullable String getBasePackSha1() { return useMergedPackLogic ? basePackSha1 : null; }
     public String getMusicPackPromptMessage() { return basePackPromptMessage; }
     public String getOriginalPackPromptMessage() { return useMergedPackLogic ? originalPackPromptMessage : ""; }
 
@@ -453,9 +452,6 @@ public class MusicPlayerPlugin extends JavaPlugin {
     }
     public String getPlayerCurrentMusicPackFile(UUID playerId) {
         return playerCurrentMusicPackFile.get(playerId);
-    }
-    public boolean isPlayerOnMusicPack(UUID playerId) {
-        return playerCurrentMusicPackFile.containsKey(playerId);
     }
     public void clearPlayerCurrentMusicPack(UUID playerId) {
         playerCurrentMusicPackFile.remove(playerId);
