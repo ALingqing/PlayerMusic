@@ -13,18 +13,15 @@ import java.util.concurrent.TimeUnit
  */
 object AudioConverter {
 
-    /** 是否可用（检测到 ffmpeg） */
-    val isAvailable: Boolean by lazy { findFfmpeg() != null }
+    /** 是否可用（检测到 ffmpeg）。每次调用实时检测，避免缓存过时结果 */
+    val isAvailable: Boolean
+        get() = findFfmpeg() != null
 
     private fun findFfmpeg(): String? {
         // 1. 插件内置 ffmpeg（启动时已解压到 plugins/PlayerMusic/native/ffmpeg）
-        try {
-            val pluginFolder = File(MusicPlayerPlugin::class.java.protectionDomain.codeSource.location.toURI()).parentFile
-            val nativeFfmpeg = File(pluginFolder, "native/ffmpeg")
-            if (nativeFfmpeg.exists() && nativeFfmpeg.isFile && canRun(nativeFfmpeg.absolutePath)) {
-                return nativeFfmpeg.absolutePath
-            }
-        } catch (_: Exception) {
+        val bundled = NativeFfmpegLoader.extractedPath
+        if (bundled != null && canRun(bundled)) {
+            return bundled
         }
         // 2. 系统 PATH
         for (name in listOf("ffmpeg", "ffmpeg.exe")) {
@@ -36,12 +33,6 @@ object AudioConverter {
         if (home != null) {
             candidates.add(File(home, "ffmpeg/bin/ffmpeg"))
             candidates.add(File(home, "ffmpeg/bin/ffmpeg.exe"))
-        }
-        try {
-            val pluginFolder = File(MusicPlayerPlugin::class.java.protectionDomain.codeSource.location.toURI()).parentFile
-            candidates.add(File(pluginFolder, "ffmpeg/bin/ffmpeg"))
-            candidates.add(File(pluginFolder, "ffmpeg/bin/ffmpeg.exe"))
-        } catch (_: Exception) {
         }
         for (candidate in candidates) {
             if (candidate.exists() && candidate.isFile) {

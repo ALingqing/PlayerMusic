@@ -28,6 +28,11 @@ object NativeFfmpegLoader {
     /** 解压后的 ffmpeg 文件名 */
     private const val FFMPEG_NAME = "ffmpeg"
 
+    /** 已解压的 ffmpeg 绝对路径（extract 成功后设置，AudioConverter 读取） */
+    @Volatile
+    var extractedPath: String? = null
+        private set
+
     /**
      * 尝试释放内置 ffmpeg。
      * @return 成功返回解压后的 ffmpeg 可执行文件路径；失败返回 null
@@ -61,6 +66,7 @@ object NativeFfmpegLoader {
             // 设置可执行权限
             target.setExecutable(true, false)
             target.setReadable(true, false)
+            extractedPath = target.absolutePath
             return target.absolutePath
         } catch (_: Exception) {
             return null
