@@ -6,8 +6,10 @@ import java.util.concurrent.TimeUnit
 /**
  * MP3 → OGG Vorbis 音频转换器（基于 ffmpeg）。
  *
- * ffmpeg 需安装在服务器上（`apt install ffmpeg` 或面板安装）。
- * 插件会自动检测系统 PATH 中的 ffmpeg/ffmpeg.exe。
+ * ffmpeg 需安装在服务器上。插件自动检测以下位置：
+ * - 系统 PATH 中的 ffmpeg/ffmpeg.exe
+ * - ~/ffmpeg/bin/ffmpeg (一键安装脚本 install-ffmpeg.sh 的默认位置)
+ * - plugins/PlayerMusic/ffmpeg/bin/ffmpeg
  */
 object AudioConverter {
 
@@ -15,18 +17,42 @@ object AudioConverter {
     val isAvailable: Boolean by lazy { findFfmpeg() != null }
 
     private fun findFfmpeg(): String? {
+        // 1. 系统 PATH
         for (name in listOf("ffmpeg", "ffmpeg.exe")) {
-            try {
-                val p = ProcessBuilder(name, "-version")
-                    .redirectErrorStream(true)
-                    .start()
-                p.waitFor(3, TimeUnit.SECONDS)
-                p.destroy()
-                return name
-            } catch (_: Exception) {
+            if (canRun(name)) return name
+        }
+        // 2. 常见安装路径
+        val candidates = mutableListOf<File>()
+        val home = System.getProperty("user.home")
+        if (home != null) {
+            candidates.add(File(home, "ffmpeg/bin/ffmpeg"))
+            candidates.add(File(home, "ffmpeg/bin/ffmpeg.exe"))
+        }
+        try {
+            val pluginFolder = File(MusicPlayerPlugin::class.java.protectionDomain.codeSource.location.toURI()).parentFile
+            candidates.add(File(pluginFolder, "ffmpeg/bin/ffmpeg"))
+            candidates.add(File(pluginFolder, "ffmpeg/bin/ffmpeg.exe"))
+        } catch (_: Exception) {
+        }
+        for (candidate in candidates) {
+            if (candidate.exists() && candidate.isFile) {
+                if (canRun(candidate.absolutePath)) return candidate.absolutePath
             }
         }
         return null
+    }
+
+    private fun canRun(cmd: String): Boolean {
+        return try {
+            val p = ProcessBuilder(cmd, "-version")
+                .redirectErrorStream(true)
+                .start()
+            val ok = p.waitFor(3, TimeUnit.SECONDS)
+            p.destroy()
+            ok
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**
