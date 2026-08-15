@@ -25,9 +25,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.logging.Handler
 import java.util.logging.Level
-import java.util.logging.LogRecord
 
 /**
  * PlayerMusic 主插件类（Kotlin 半重写，版本 1.0.0）
@@ -192,42 +190,30 @@ class MusicPlayerPlugin : JavaPlugin() {
 
     // ===================== 日志文件 =====================
 
+    /**
+     * 播放过程日志写入 player.log（不经过 java.util.logging，
+     * 避免触发 Paper SysoutCatcher 的 System.out → Logger 无限递归）。
+     */
+    fun logPlayback(msg: String) {
+        synchronized(this) {
+            try {
+                if (logFileWriter == null) {
+                    val logFile = File(dataFolder, "player.log")
+                    logFileWriter = PrintWriter(FileWriter(logFile, true), true)
+                }
+                val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
+                logFileWriter?.println("[$time] $msg")
+                logFileWriter?.flush()
+            } catch (e: Exception) {
+                logger.log(Level.WARNING, "写入播放日志失败", e)
+            }
+        }
+    }
+
     private fun installLogFileHandler() {
         if (logFileHandlerInstalled) return
-        try {
-            val logFile = File(dataFolder, "player.log")
-            logFileWriter = PrintWriter(FileWriter(logFile, true), true)
-        } catch (e: Exception) {
-            logger.log(Level.WARNING, "无法创建日志文件 player.log，播放日志将不写入文件。", e)
-            return
-        }
-
-        val dispatchHandler = object : Handler() {
-            override fun publish(record: LogRecord) {
-                val msg = record.message ?: return
-                if (record.level == Level.INFO && isPlaybackLogMessage(msg)) {
-                    synchronized(this@MusicPlayerPlugin) {
-                        logFileWriter?.let {
-                            val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date(record.millis))
-                            it.println("[$time] $msg")
-                        }
-                    }
-                    return
-                }
-                val consoleMsg = "[$name] $msg"
-                if (record.level == Level.SEVERE) {
-                    System.err.println(consoleMsg)
-                } else {
-                    System.out.println(consoleMsg)
-                }
-            }
-
-            override fun flush() { logFileWriter?.flush() }
-            override fun close() { flush() }
-        }
-
-        logger.addHandler(dispatchHandler)
-        logger.useParentHandlers = false
+        // 仅初始化日志文件写入器（懒加载），不再接管控制台输出，避免递归
+        logFileWriter?.flush()
         logFileHandlerInstalled = true
         logger.info("播放日志将写入 ${File(dataFolder, "player.log").path}")
     }
@@ -389,9 +375,9 @@ class MusicPlayerPlugin : JavaPlugin() {
             }
             presetSongsList.add(PresetSong(songName, fileUri, material, songLore, album))
             added++
-            logger.info("自动识别音乐文件: ${oggFile.absolutePath} -> 歌曲名: '$songName'" + (if (album != null) " (专辑: $album)" else ""))
+            logPlayback("自动识别音乐文件: ${oggFile.absolutePath} -> 歌曲名: '$songName'" + (if (album != null) " (专辑: $album)" else ""))
         }
-        logger.info("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首 .ogg 音乐文件。")
+        logPlayback("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首 .ogg 音乐文件。")
     }
 
     fun getAlbums(): List<String> {

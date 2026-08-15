@@ -80,7 +80,7 @@ public class PlayerResourceListener implements Listener {
                     if (pendingSound != null && tempPackFileName != null && tempPackFileName.equals(pendingSound.getPackFileName())) {
                         float volume = plugin.getPlayerVolume(player.getUniqueId());
                         player.playSound(player.getLocation(), pendingSound.getSoundEventName(), SoundCategory.MUSIC, volume, 1.0f);
-                        plugin.getLogger().info("播放独立/预设音乐: " + pendingSound.getSoundEventName() + " for " + player.getName());
+                        plugin.logPlayback("播放独立/预设音乐: " + pendingSound.getSoundEventName() + " for " + player.getName());
 
                         // 循环播放：注册声音并调度重播（按歌曲时长约 180s 重播）
                         if (plugin.isPlayerLooping(player.getUniqueId())) {
@@ -99,7 +99,7 @@ public class PlayerResourceListener implements Listener {
                             tempPackFileName != null && Objects.equals(tempPackFileName, room.getPackFileName())) {
                         String soundEventName = plugin.getHttpFileServer().getServePathPrefix() + ".room." + room.getRoomId();
                         player.playSound(player.getLocation(), soundEventName, SoundCategory.MUSIC, 1.0f, 1.0f);
-                        plugin.getLogger().info("播放房间音乐: " + soundEventName + " for " + player.getName() + " in room " + roomIdForRoomType);
+                        plugin.logPlayback("播放房间音乐: " + soundEventName + " for " + player.getName() + " in room " + roomIdForRoomType);
                         room.updateLastActivityTime();
                         room.setStatus(MusicRoom.RoomStatus.PLAYING);
                     } else if (room != null && (!room.getPlayRequestActive() || (room.getPackFileName() != null && !Objects.equals(tempPackFileName, room.getPackFileName())))) {

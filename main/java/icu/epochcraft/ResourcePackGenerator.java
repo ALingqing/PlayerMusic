@@ -216,7 +216,7 @@ public class ResourcePackGenerator {
                 Files.copy(tempAudioFile.toPath(), zos);
                 zos.closeEntry();
             }
-            plugin.getLogger().info("已创建合并的资源包: " + tempMergedPackFile.getName() + " for sound " + soundEventName);
+            plugin.logPlayback("已创建合并的资源包: " + tempMergedPackFile.getName() + " for sound " + soundEventName);
             String sha1;
             try (InputStream fis = new FileInputStream(tempMergedPackFile)) {
                 sha1 = DigestUtils.sha1Hex(fis);
@@ -313,7 +313,7 @@ public class ResourcePackGenerator {
                 Files.copy(tempAudioFile.toPath(), zos);
                 zos.closeEntry();
             }
-            plugin.getLogger().info("已创建独立的资源包: " + tempIndependentPackFile.getName() + " for sound " + soundEventName);
+            plugin.logPlayback("已创建独立的资源包: " + tempIndependentPackFile.getName() + " for sound " + soundEventName);
             String sha1;
             try (InputStream fis = new FileInputStream(tempIndependentPackFile)) {
                 sha1 = DigestUtils.sha1Hex(fis);
@@ -356,7 +356,7 @@ public class ResourcePackGenerator {
         File packFile = new File(tempPackStorageDir, tempPackFileName);
         if (packFile.exists()) {
             if (packFile.delete()) {
-                plugin.getLogger().info("已清理临时资源包: " + tempPackFileName);
+                plugin.logPlayback("已清理临时资源包: " + tempPackFileName);
             } else {
                 plugin.getLogger().warning("无法清理临时资源包: " + tempPackFileName + " (可能仍被占用)");
             }
