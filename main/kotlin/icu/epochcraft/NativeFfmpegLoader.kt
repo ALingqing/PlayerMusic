@@ -19,6 +19,9 @@ object NativeFfmpegLoader {
     /** 内置 ffmpeg 在 jar 内的资源路径前缀 */
     private const val RESOURCE_PREFIX = "native/"
 
+    /** 内置 ffmpeg 资源文件名前缀（实际文件如 ffmpeg-linux-amd64.gz） */
+    private const val RESOURCE_FILE_PREFIX = "ffmpeg-linux-"
+
     /** 插件数据目录下的解压目标子目录 */
     private const val NATIVE_DIR = "native"
 
@@ -35,7 +38,7 @@ object NativeFfmpegLoader {
         if (!osName.contains("linux")) return null
 
         val arch = detectArch() ?: return null
-        val resourceName = "$RESOURCE_PREFIX$arch.gz"
+        val resourceName = "$RESOURCE_PREFIX$RESOURCE_FILE_PREFIX$arch.gz"
 
         // 检查 jar 内是否真的打包了该资源
         val resourceStream = try {

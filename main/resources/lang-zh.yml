@@ -37,7 +37,7 @@ messages:
       failed: "§c下载或转换失败: <name>"
       noSearch: "§c请先使用 /bf search <歌曲名> 搜索。序号 <index> 无效。"
       resolveFailed: "§c无法解析歌曲: <id>"
-      noFfmpeg: "§c无法下载 <name>：服务器未安装 ffmpeg，无法将 MP3 转为 OGG。请在服务器执行 §eapt install ffmpeg §c后重试。"
+      noFfmpeg: "§c无法下载 <name>：未能检测到 ffmpeg（仅支持 Linux 服务器）。请确认服务器为 Linux 后重试。"
     stop:
       notPlaying: "§e你当前没有在播放任何音乐。"
       stoppedForSelf: "§a已为你停止播放音乐。"
