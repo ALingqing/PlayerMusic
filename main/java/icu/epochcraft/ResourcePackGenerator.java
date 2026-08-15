@@ -86,8 +86,11 @@ public class ResourcePackGenerator {
         // 支持 file 协议（如 file:/... 或 file:///...）：直接读取本地文件，无需网络下载
         if ("file".equalsIgnoreCase(audioSourceUrl.getProtocol())) {
             try {
-                // 不用 URL.toURI()（对含 & 等特殊字符的路径会抛异常），改用 getPath()（已 URL 解码）
+                // URL.getPath() 对 %XX 转义不会解码（如 %5B/%5D 对应 [/]），需用 URLDecoder 解码
                 String filePath = audioSourceUrl.getPath();
+                if (filePath != null && (filePath.contains("%") || filePath.contains("+"))) {
+                    filePath = java.net.URLDecoder.decode(filePath, "UTF-8");
+                }
                 if (filePath == null || filePath.isEmpty()) {
                     plugin.getLogger().warning("本地音频 URL 缺少路径: " + audioUrl + " (" + modeIdentifier + " 模式)");
                     return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
