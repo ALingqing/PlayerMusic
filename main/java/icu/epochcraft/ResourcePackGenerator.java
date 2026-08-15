@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -122,7 +122,7 @@ public class ResourcePackGenerator {
 
         try {
             HttpURLConnection connection = (HttpURLConnection) audioSourceUrl.openConnection();
-            connection.setRequestProperty("User-Agent", "EogdMusicPlayer/" + plugin.getDescription().getVersion());
+            connection.setRequestProperty("User-Agent", "PlayerMusic/" + plugin.getDescription().getVersion());
             connection.setInstanceFollowRedirects(true);
             connection.setConnectTimeout(plugin.getConfig().getInt("httpServer.downloadConnectTimeoutMillis", 5000));
             connection.setReadTimeout(plugin.getConfig().getInt("httpServer.downloadReadTimeoutMillis", 10000));

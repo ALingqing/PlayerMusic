@@ -1,4 +1,4 @@
-# EogdMusicPlayer 配置文件
+# PlayerMusic 配置文件
 
 # HTTP 文件服务器设置
 httpServer:
@@ -17,7 +17,7 @@ httpServer:
 resourcePack:
   packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
   # 26.1 -> 84, 26.2 -> 88, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
-  description: "§bEogdMusicPlayer §7音乐资源包" # 资源包的描述文本
+  description: "§bPlayerMusic §7音乐资源包" # 资源包的描述文本
   enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
   # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
 
@@ -40,7 +40,7 @@ gui:
 # 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
 musicFolder:
   enabled: true # 是否启用文件夹音乐自动识别 (true/false)
-  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/EogdMusicPlayer/music)
+  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/PlayerMusic/music)
   recursive: true # 是否递归扫描子文件夹中的 .ogg 文件 (true/false)
   item: "MUSIC_DISC_CAT" # 文件夹音乐在GUI中显示的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
@@ -139,7 +139,7 @@ messages:
       success: "§a音乐室 '<room_description>§a' 已成功解散。"
       notifyMemberRoomDisbanded: "§e你所在的音乐室 '<room_description>§e' 已被房主解散。"
     reload:
-      success: "§aEogdMusicPlayer 配置已重载。"
+      success: "§aPlayerMusic 配置已重载。"
     rescan:
       success: "§a已重新扫描音乐文件夹，新识别 <count> 首歌曲。"
     info: {} # /bf info 使用硬编码格式

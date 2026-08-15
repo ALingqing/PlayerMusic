@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import org.bukkit.Material;
 import java.util.ArrayList;

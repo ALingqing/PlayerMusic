@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;

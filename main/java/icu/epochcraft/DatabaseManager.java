@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import java.io.File;
 import java.sql.*;
@@ -20,7 +20,7 @@ public class DatabaseManager {
 
     public synchronized Connection getConnection() throws SQLException {
         if (connection == null || connection.isClosed()) {
-            File dataFolder = new File(plugin.getDataFolder(), "EogdMusicPlayer.db");
+            File dataFolder = new File(plugin.getDataFolder(), "PlayerMusic.db");
             if (!dataFolder.exists()) {
                 try {
                     if (!dataFolder.getParentFile().exists()) {

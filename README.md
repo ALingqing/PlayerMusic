@@ -1,6 +1,6 @@
-# EogdMusicPlayer - Spigot 音乐播放插件
+# PlayerMusic - Spigot 音乐播放插件
 
-EogdMusicPlayer 是一款功能丰富的 Spigot 插件，允许服务器管理员和玩家在 Minecraft 中通过自定义资源包播放外部音乐链接。它支持独立播放和音乐房间功能，为你的服务器带来独特的听觉体验。
+PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和玩家在 Minecraft 中通过自定义资源包播放外部音乐链接。它支持独立播放和音乐房间功能，为你的服务器带来独特的听觉体验。
 
 ## 目录
 
@@ -42,17 +42,17 @@ EogdMusicPlayer 是一款功能丰富的 Spigot 插件，允许服务器管理�
 
 ## 安装步骤
 
-1.  下载最新的 `EogdMusicPlayer.jar` 文件。
-2.  将 `EogdMusicPlayer.jar` 文件放入你服务器的 `plugins` 文件夹中。
+1.  下载最新的 `PlayerMusic.jar` 文件。
+2.  将 `PlayerMusic.jar` 文件放入你服务器的 `plugins` 文件夹中。
 3.  启动或重启你的 Minecraft 服务器。
-4.  插件将自动生成默认的配置文件 `plugins/EogdMusicPlayer/config.yml`。
+4.  插件将自动生成默认的配置文件 `plugins/PlayerMusic/config.yml`。
 
 ## 配置 (`config.yml`)
 
 插件首次加载时会自动生成 `config.yml`。以下是主要配置项的说明：
 
 ```yaml
-# EogdMusicPlayer 配置文件
+# PlayerMusic 配置文件
 
 # HTTP 文件服务器设置
 httpServer:
@@ -71,7 +71,7 @@ httpServer:
 resourcePack:
   packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
                 # 26.1 -> 84, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
-  description: "§bEogdMusicPlayer §7音乐资源包" # 资源包的描述文本
+  description: "§bPlayerMusic §7音乐资源包" # 资源包的描述文本
   enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
                                # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
 
@@ -85,7 +85,7 @@ baseResourcePack:
 # 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
 musicFolder:
   enabled: true # 是否启用文件夹音乐自动识别 (true/false)
-  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/EogdMusicPlayer/music)
+  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/PlayerMusic/music)
   recursive: true # 是否递归扫描子文件夹中的 .ogg 文件 (true/false)
   item: "MUSIC_DISC_CAT" # 文件夹音乐在GUI中显示的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
@@ -192,7 +192,7 @@ messages:
       success: "§a音乐室 '<room_description>§a' 已成功解散。"
       notifyMemberRoomDisbanded: "§e你所在的音乐室 '<room_description>§e' 已被房主解散。"
     reload:
-      success: "§aEogdMusicPlayer 配置已重载。"
+      success: "§aPlayerMusic 配置已重载。"
     info: {} # /bf info 使用硬编码格式
 
   playurl: # /playurl 命令相关消息 (如果与 /bf playurl 不同)
@@ -214,7 +214,7 @@ messages:
 **重要**:
 *   `resourcePack.packFormat`: 这个值非常重要，必须与你的服务器客户端版本兼容。请查阅 Minecraft Wiki 获取最新的资源包版本信息 (例如，Paper 26.2 / Minecraft 26.2 通常是 88)。
 *   `httpServer.publicAddress`: 如果服务器在NAT网络后（例如家庭网络），留空或使用 `auto` 可能无法正确检测到公网IP。你需要手动配置为你的公网IP或域名，否则玩家可能无法下载资源包。确保配置的 `httpServer.port` 在防火墙和路由器上是开放的。
-*   `baseResourcePack.enableMerging`: 如果设置为 `true`，你必须在 `plugins/EogdMusicPlayer/` 目录下放置一个名为 `baseResourcePack.fileName` 指定的有效基础资源包文件。
+*   `baseResourcePack.enableMerging`: 如果设置为 `true`，你必须在 `plugins/PlayerMusic/` 目录下放置一个名为 `baseResourcePack.fileName` 指定的有效基础资源包文件。
 *   `resourcePack.enablePresetPrewarming`: 设置为 `true` 以在插件启动时为预设歌曲生成资源包，加快后续播放速度。
 
 ## 命令与权限
@@ -223,18 +223,18 @@ messages:
 
 | 命令                                            | 描述                                           | 权限节点                             |
 | :---------------------------------------------- | :--------------------------------------------- | :----------------------------------- |
-| `/bf play <歌曲名 或 序号>`                       | 播放预设列表中的歌曲。                             | `eogdmusicplayer.play`               |
-| `/bf playurl <URL>`                             | 直接播放指定 URL 的音乐。                        | `eogdmusicplayer.playurl`            |
-| `/playurl <URL>`                                | `/bf playurl` 的别名。                         | `eogdmusicplayer.playurl`            |
-| `/bf stop`                                      | 停止当前为自己播放的音乐，或停止自己创建的房间音乐。 | `eogdmusicplayer.stop`               |
-| `/bf gui`                                       | 打开预设歌曲选择GUI。                            | `eogdmusicplayer.gui`                |
-| `/bf createroom <URL> <房间描述>`                 | 创建一个音乐房间。                               | `eogdmusicplayer.createroom`         |
-| `/bf join <房间创建者名称>`                       | 加入一个已存在的音乐房间。                         | `eogdmusicplayer.joinroom`           |
-| `/bf start`                                     | (房间创建者) 开始播放当前房间设置的音乐。          | `eogdmusicplayer.room.start`         |
-| `/bf roomplay <新URL>`                          | (房间创建者) 更改当前房间的音乐URL。             | `eogdmusicplayer.roomplay`           |
-| `/bf disbandroom`                               | (房间创建者) 解散自己创建的音乐房间。              | `eogdmusicplayer.disbandroom`        |
-| `/bf reload`                                    | 重载插件配置文件。                               | `eogdmusicplayer.reload`             |
-| `/bf info`                                      | 显示插件信息。                                   | `eogdmusicplayer.info`               |
+| `/bf play <歌曲名 或 序号>`                       | 播放预设列表中的歌曲。                             | `playermusic.play`               |
+| `/bf playurl <URL>`                             | 直接播放指定 URL 的音乐。                        | `playermusic.playurl`            |
+| `/playurl <URL>`                                | `/bf playurl` 的别名。                         | `playermusic.playurl`            |
+| `/bf stop`                                      | 停止当前为自己播放的音乐，或停止自己创建的房间音乐。 | `playermusic.stop`               |
+| `/bf gui`                                       | 打开预设歌曲选择GUI。                            | `playermusic.gui`                |
+| `/bf createroom <URL> <房间描述>`                 | 创建一个音乐房间。                               | `playermusic.createroom`         |
+| `/bf join <房间创建者名称>`                       | 加入一个已存在的音乐房间。                         | `playermusic.joinroom`           |
+| `/bf start`                                     | (房间创建者) 开始播放当前房间设置的音乐。          | `playermusic.room.start`         |
+| `/bf roomplay <新URL>`                          | (房间创建者) 更改当前房间的音乐URL。             | `playermusic.roomplay`           |
+| `/bf disbandroom`                               | (房间创建者) 解散自己创建的音乐房间。              | `playermusic.disbandroom`        |
+| `/bf reload`                                    | 重载插件配置文件。                               | `playermusic.reload`             |
+| `/bf info`                                      | 显示插件信息。                                   | `playermusic.info`               |
 
 ## 工作原理简述
 
@@ -262,7 +262,7 @@ messages:
     *   检查 `config.yml` 中的 `httpServer.enabled` 是否为 `true`。
     *   检查 `httpServer.port` 是否被其他程序占用。
 *   **提示 "Base Pack Missing" (合并模式下)**:
-    *   确保 `config.yml` 中 `baseResourcePack.enableMerging` 为 `true` 时，`plugins/EogdMusicPlayer/` 目录下存在 `baseResourcePack.fileName` 指定的基础资源包文件。
+    *   确保 `config.yml` 中 `baseResourcePack.enableMerging` 为 `true` 时，`plugins/PlayerMusic/` 目录下存在 `baseResourcePack.fileName` 指定的基础资源包文件。
 *   **玩家无法下载资源包**:
     *   确认 `config.yml` 中的 `httpServer.publicAddress` 设置正确（对于公网服务器，应为服务器的公网IP或域名）。
     *   确认 `httpServer.port` 已在服务器防火墙和路由器（如果适用）中开放。
@@ -273,7 +273,7 @@ messages:
 
 ## 作者
 
-EogdMusicPlayer 由 **Eogd** 开发。
+PlayerMusic 由 **ALingqing** 开发。
 
 ---
 

@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -43,7 +43,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
             return false;
         }
         if (!sender.hasPermission(permissionKey) && !(sender instanceof org.bukkit.command.ConsoleCommandSender &&
-                (permissionKey.equals("eogdmusicplayer.reload") || permissionKey.equals("eogdmusicplayer.info")))) {
+                (permissionKey.equals("playermusic.reload") || permissionKey.equals("playermusic.info")))) {
             plugin.sendConfigMsg(sender, "messages.general.noPermission");
             return false;
         }
@@ -77,7 +77,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
             String subCommand = args[0].toLowerCase();
             switch (subCommand) {
                 case "play":
-                    if (!canExecute(sender, "eogdmusicplayer.play", true)) return true;
+                    if (!canExecute(sender, "playermusic.play", true)) return true;
                     if (!(sender instanceof Player playerForPlay)) return true;
                     if (args.length < 2) {
                         plugin.sendConfigMsg(playerForPlay, "messages.bf.play.usage");
@@ -101,11 +101,11 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "playurl":
-                    if (!canExecute(sender, "eogdmusicplayer.playurl", true)) return true;
+                    if (!canExecute(sender, "playermusic.playurl", true)) return true;
                     return handlePlayUrlCommandLogic(sender, args, true);
 
                 case "stop":
-                    if (!canExecute(sender, "eogdmusicplayer.stop", true)) return true;
+                    if (!canExecute(sender, "playermusic.stop", true)) return true;
                     if (!(sender instanceof Player playerForStop)) return true;
 
                     MusicRoom roomPlayerIsIn = plugin.getActiveMusicRoomsView().stream()
@@ -186,13 +186,13 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "gui":
-                    if (!canExecute(sender, "eogdmusicplayer.gui", true)) return true;
+                    if (!canExecute(sender, "playermusic.gui", true)) return true;
                     if (!(sender instanceof Player playerForGui)) return true;
                     new MusicGUI(plugin).open(playerForGui);
                     return true;
 
                 case "createroom":
-                    if (!canExecute(sender, "eogdmusicplayer.createroom", true)) return true;
+                    if (!canExecute(sender, "playermusic.createroom", true)) return true;
                     if (!(sender instanceof Player creator)) return true;
                     if (args.length < 3) {
                         plugin.sendConfigMsg(creator, "messages.bf.createroom.usage");
@@ -232,7 +232,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "join":
-                    if (!canExecute(sender, "eogdmusicplayer.joinroom", true)) return true;
+                    if (!canExecute(sender, "playermusic.joinroom", true)) return true;
                     if (!(sender instanceof Player joiner)) return true;
                     if (args.length < 2) {
                         plugin.sendConfigMsg(joiner, "messages.bf.join.usage");
@@ -265,7 +265,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "start":
-                    if (!canExecute(sender, "eogdmusicplayer.room.start", true)) return true;
+                    if (!canExecute(sender, "playermusic.room.start", true)) return true;
                     if (!(sender instanceof Player roomStarter)) return true;
                     MusicRoom roomToStart = plugin.getActiveMusicRoomsView().stream()
                             .filter(r -> r.getCreator().equals(roomStarter))
@@ -294,7 +294,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "roomplay":
-                    if (!canExecute(sender, "eogdmusicplayer.room.roomplay", true)) return true;
+                    if (!canExecute(sender, "playermusic.room.roomplay", true)) return true;
                     if (!(sender instanceof Player roomPlayRequester)) return true;
                     MusicRoom ownRoom = plugin.getActiveMusicRoomsView().stream()
                             .filter(r -> r.getCreator().equals(roomPlayRequester))
@@ -341,7 +341,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "disbandroom":
-                    if (!canExecute(sender, "eogdmusicplayer.disbandroom", true)) return true;
+                    if (!canExecute(sender, "playermusic.disbandroom", true)) return true;
                     if (!(sender instanceof Player disbandRequester)) return true;
                     MusicRoom roomToDisband = plugin.getActiveMusicRoomsView().stream()
                             .filter(r -> r.getCreator().equals(disbandRequester))
@@ -362,21 +362,21 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
 
                 case "reload":
-                    if (!canExecute(sender, "eogdmusicplayer.reload", false)) return true;
+                    if (!canExecute(sender, "playermusic.reload", false)) return true;
                     plugin.reloadPluginConfiguration();
                     plugin.sendConfigMsg(sender, "messages.bf.reload.success");
                     return true;
 
                 case "rescan":
-                    if (!canExecute(sender, "eogdmusicplayer.reload", false)) return true;
+                    if (!canExecute(sender, "playermusic.reload", false)) return true;
                     int addedSongs = plugin.rescanMusicFolder();
                     plugin.sendConfigMsg(sender, "messages.bf.rescan.success", "count", String.valueOf(addedSongs));
                     return true;
 
                 case "info":
-                    if (!canExecute(sender, "eogdmusicplayer.info", false)) return true;
+                    if (!canExecute(sender, "playermusic.info", false)) return true;
                     PluginDescriptionFile pdf = plugin.getDescription();
-                    sender.sendMessage(ChatColor.GOLD + "--- [" + ChatColor.YELLOW + "EogdMusicPlayer 信息" + ChatColor.GOLD + "] ---");
+                    sender.sendMessage(ChatColor.GOLD + "--- [" + ChatColor.YELLOW + "PlayerMusic 信息" + ChatColor.GOLD + "] ---");
                     sender.sendMessage(ChatColor.AQUA + "作者: " + ChatColor.WHITE + String.join(", ", pdf.getAuthors()));
                     sender.sendMessage(ChatColor.AQUA + "版本: " + ChatColor.WHITE + pdf.getVersion());
                     sender.sendMessage(ChatColor.AQUA + "描述: " + ChatColor.WHITE + (pdf.getDescription() != null ? pdf.getDescription() : "N/A"));
@@ -389,7 +389,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     return true;
             }
         } else if (command.getName().equalsIgnoreCase("playurl")) {
-            if (!canExecute(sender, "eogdmusicplayer.playurl", true)) return true;
+            if (!canExecute(sender, "playermusic.playurl", true)) return true;
             return handlePlayUrlCommandLogic(sender, args, false);
         } else if (command.getName().equalsIgnoreCase("internal_join_room")) {
             if (!(sender instanceof Player playerToJoin)) return true;
@@ -504,7 +504,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                                 if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(player);
                                 return;
                             }
-                            UUID packId = UUID.nameUUIDFromBytes(("eogdmusicplayer-" + soundEventName).getBytes(StandardCharsets.UTF_8));
+                            UUID packId = UUID.nameUUIDFromBytes(("playermusic-" + soundEventName).getBytes(StandardCharsets.UTF_8));
                             plugin.setPlayerPackRequestId(player.getUniqueId(), packId);
                             player.setResourcePack(packId, packInfo.packUrl(), sha1Bytes, plugin.legacyToComponent(promptMessage), true);
 
@@ -537,8 +537,8 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                 List<String> subCommands = new ArrayList<>(List.of("play", "stop", "gui", "playurl", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"));
                 if (sender instanceof Player p) {
                     subCommands.removeIf(cmd -> {
-                        String perm = "eogdmusicplayer." + cmd;
-                        if (cmd.equals("start") || cmd.equals("roomplay")) perm = "eogdmusicplayer.room." + cmd;
+                        String perm = "playermusic." + cmd;
+                        if (cmd.equals("start") || cmd.equals("roomplay")) perm = "playermusic.room." + cmd;
                         return !p.hasPermission(perm);
                     });
                 } else {
@@ -549,7 +549,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
             } else if (args.length == 2) {
                 String subCommand = args[0].toLowerCase();
                 String input = args[1].toLowerCase();
-                if (subCommand.equals("play") && sender.hasPermission("eogdmusicplayer.play")) {
+                if (subCommand.equals("play") && sender.hasPermission("playermusic.play")) {
                     plugin.getPresetSongs().forEach(song -> {
                         String songIndexStr = String.valueOf(plugin.getPresetSongs().indexOf(song) + 1);
                         if (songIndexStr.startsWith(input)) {
@@ -560,25 +560,25 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                             completions.add(cleanName);
                         }
                     });
-                } else if (subCommand.equals("join") && sender.hasPermission("eogdmusicplayer.joinroom")) {
+                } else if (subCommand.equals("join") && sender.hasPermission("playermusic.joinroom")) {
                     plugin.getActiveMusicRoomsView().stream()
                             .map(room -> room.getCreator().getName())
                             .filter(name -> name.toLowerCase().startsWith(input))
                             .distinct()
                             .forEach(completions::add);
-                } else if ((subCommand.equals("playurl") && sender.hasPermission("eogdmusicplayer.playurl")) ||
-                        (subCommand.equals("roomplay") && sender.hasPermission("eogdmusicplayer.room.roomplay")) ||
-                        (subCommand.equals("createroom") && sender.hasPermission("eogdmusicplayer.createroom") && args.length == 2 ) ) {
+                } else if ((subCommand.equals("playurl") && sender.hasPermission("playermusic.playurl")) ||
+                        (subCommand.equals("roomplay") && sender.hasPermission("playermusic.room.roomplay")) ||
+                        (subCommand.equals("createroom") && sender.hasPermission("playermusic.createroom") && args.length == 2 ) ) {
                     if (input.isEmpty() || input.startsWith("http")) {
                         completions.add("http://");
                         completions.add("https://");
                     }
                 }
-            } else if (args.length == 3 && args[0].equalsIgnoreCase("createroom") && sender.hasPermission("eogdmusicplayer.createroom")) {
+            } else if (args.length == 3 && args[0].equalsIgnoreCase("createroom") && sender.hasPermission("playermusic.createroom")) {
                 completions.add("<房间描述>");
             }
         } else if (command.getName().equalsIgnoreCase("playurl") && args.length == 1) {
-            if (sender.hasPermission("eogdmusicplayer.playurl")) {
+            if (sender.hasPermission("playermusic.playurl")) {
                 String input = args[0].toLowerCase();
                 if (input.isEmpty() || input.startsWith("http")) {
                     completions.add("http://");

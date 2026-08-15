@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>eogd.musicplayer</groupId>
-    <artifactId>EogdMusicPlayer</artifactId>
+    <groupId>icu.epochcraft</groupId>
+    <artifactId>PlayerMusic</artifactId>
     <version>1.1.71</version>
     <packaging>jar</packaging>
 
-    <name>EogdMusicPlayer</name>
-    <description>EogdMusicPlayer - Spigot/Paper 音乐播放插件 (支持 Paper 26.2)</description>
+    <name>PlayerMusic</name>
+    <description>PlayerMusic - Spigot/Paper 音乐播放插件 (支持 Paper 26.2)</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

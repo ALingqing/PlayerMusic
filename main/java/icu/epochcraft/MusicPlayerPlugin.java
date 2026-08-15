@@ -1,4 +1,4 @@
-package eogd.musicplayer;
+package icu.epochcraft;
 
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -61,7 +61,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        getLogger().info("EogdMusicPlayer 正在启动 (版本 " + getDescription().getVersion() + ")...");
+        getLogger().info("PlayerMusic 正在启动 (版本 " + getDescription().getVersion() + ")...");
 
         if (!getDataFolder().exists()) {
             if (!getDataFolder().mkdirs()) {
@@ -566,7 +566,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
         String packUrl = httpFileServer.getFileUrl(getConfig().getString("httpServer.publicAddress"), getConfig().getInt("httpServer.port"), basePackFileNameConfig);
         try {
             byte[] sha1Bytes = Hex.decodeHex(basePackSha1);
-            UUID packId = UUID.nameUUIDFromBytes(("eogdmusicplayer-base-" + basePackFileNameConfig).getBytes(StandardCharsets.UTF_8));
+            UUID packId = UUID.nameUUIDFromBytes(("playermusic-base-" + basePackFileNameConfig).getBytes(StandardCharsets.UTF_8));
             setPlayerPackRequestId(player.getUniqueId(), packId);
             player.setResourcePack(packId, packUrl, sha1Bytes, legacyToComponent(getOriginalPackPromptMessage()), true);
             getLogger().info("正在向玩家 " + player.getName() + " 发送原始基础资源包: " + packUrl);

@@ -1,57 +1,57 @@
-name: EogdMusicPlayer
+name: PlayerMusic
 version: ${project.version}
-main: eogd.musicplayer.MusicPlayerPlugin
+main: icu.epochcraft.MusicPlayerPlugin
 api-version: '26.2'
-author: Eogd
+author: ALingqing
 description: ${project.description}
 
 commands:
   bf:
     description: 主音乐播放器命令。
-    usage: "/bf <play|playurl|stop|gui|createroom|join|start|roomplay|disbandroom|reload|rescan|info>" # 新增 info
-    aliases: [music, eogdmusic]
+    usage: "/bf <play|playurl|stop|gui|createroom|join|start|roomplay|disbandroom|reload|rescan|info>"
+    aliases: [music, pm]
   playurl:
     description: 快速播放指定URL的音乐 (仅自己听)。
     usage: "/playurl <URL>"
   internal_join_room:
     description: Internal command to join a music room.
     usage: "/internal_join_room <roomId>"
-    permission: eogdmusicplayer.internal.join
+    permission: playermusic.internal.join
 
 permissions:
-  eogdmusicplayer.reload:
+  playermusic.reload:
     description: 允许重载插件配置。
     default: op
-  eogdmusicplayer.play:
+  playermusic.play:
     description: 允许使用 /bf play。
     default: true
-  eogdmusicplayer.playurl:
+  playermusic.playurl:
     description: 允许使用 /bf playurl 和 /playurl。
     default: true
-  eogdmusicplayer.stop:
+  playermusic.stop:
     description: 允许使用 /bf stop。
     default: true
-  eogdmusicplayer.gui:
+  playermusic.gui:
     description: 允许使用 /bf gui。
     default: true
-  eogdmusicplayer.createroom:
+  playermusic.createroom:
     description: 允许使用 /bf createroom 创建音乐室。
     default: true
-  eogdmusicplayer.joinroom:
+  playermusic.joinroom:
     description: 允许使用 /bf join 加入音乐室。
     default: true
-  eogdmusicplayer.room.start:
+  playermusic.room.start:
     description: 允许音乐室创建者使用 /bf start 播放音乐。
     default: true
-  eogdmusicplayer.roomplay:
+  playermusic.roomplay:
     description: 允许音乐室创建者使用 /bf roomplay 更新音乐URL。
     default: true
-  eogdmusicplayer.disbandroom:
+  playermusic.disbandroom:
     description: 允许音乐室创建者使用 /bf disbandroom。
     default: true
-  eogdmusicplayer.info: # 新权限
+  playermusic.info:
     description: 允许使用 /bf info 查看插件信息。
     default: true
-  eogdmusicplayer.internal.join:
+  playermusic.internal.join:
     description: Allows internal joining to rooms (e.g. via specific plugin features).
     default: op
