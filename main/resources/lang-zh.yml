@@ -14,6 +14,7 @@ messages:
     fileTooLarge: "§c音频文件过大 (<size>MB)，无法下载。URL: <url>" # <size> 会被替换
     downloadException: "§c下载音频文件时发生网络错误。URL: <url>"
     localFileNotFound: "§c本地音乐文件不存在或无法访问。文件: <url>"
+    noSongs: "§c音乐文件夹中没有可播放的音乐。"
 
   bf: # /bf 命令相关消息
     usage: |-
@@ -64,6 +65,15 @@ messages:
       success: "§aPlayerMusic 配置已重载。"
     rescan:
       success: "§a已重新扫描音乐文件夹，新识别 <count> 首歌曲。"
+    random:
+      usage: "§e用法: /bf random"
+    loop:
+      usage: "§e用法: /bf loop"
+      toggled: "§a歌曲循环已<state>。"
+    volume:
+      usage: "§e用法: /bf volume <0-100>"
+      set: "§a音量已设置为 <percent>%。"
+      invalid: "§c无效的音量值，请输入 0-100 之间的数字。"
     info: {} # /bf info 使用硬编码格式
 
   playurl: # 通用播放错误消息
@@ -88,3 +98,9 @@ gui:
   nextPageName: "§a下一页 ->"
   allMusic: "§a全部音乐"
   backToAlbums: "§c<- 返回专辑"
+  random: "§a随机播放"
+  loop: "§e循环"
+  loopOn: "§a已开启"
+  loopOff: "§c已关闭"
+  volumeDown: "§c音量 -"
+  volumeUp: "§a音量 +"

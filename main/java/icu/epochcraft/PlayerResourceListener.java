@@ -77,25 +77,32 @@ public class PlayerResourceListener implements Listener {
 
                 if (packTypeOrSoundSource.equals("singleUser") || packTypeOrSoundSource.equals("preset")) {
                     MusicPlayerPlugin.PendingOnlineSound pendingSound = plugin.getPendingSingleUserSound(player.getUniqueId());
-                    if (pendingSound != null && tempPackFileName != null && tempPackFileName.equals(pendingSound.packFileName())) {
-                        player.playSound(player.getLocation(), pendingSound.soundEventName(), SoundCategory.MUSIC, 1.0f, 1.0f);
-                        plugin.getLogger().info("播放独立/预设音乐: " + pendingSound.soundEventName() + " for " + player.getName());
-                    } else if (pendingSound != null && (tempPackFileName == null || !tempPackFileName.equals(pendingSound.packFileName()))){
-                        plugin.getLogger().warning("玩家 " + player.getName() + " 成功加载了资源包，但待播放的独立/预设音乐信息不匹配或包文件名缺失。文件名: " + tempPackFileName + ", 期望: " + (pendingSound.packFileName() != null ? pendingSound.packFileName() : "null"));
+                    if (pendingSound != null && tempPackFileName != null && tempPackFileName.equals(pendingSound.getPackFileName())) {
+                        float volume = plugin.getPlayerVolume(player.getUniqueId());
+                        player.playSound(player.getLocation(), pendingSound.getSoundEventName(), SoundCategory.MUSIC, volume, 1.0f);
+                        plugin.getLogger().info("播放独立/预设音乐: " + pendingSound.getSoundEventName() + " for " + player.getName());
+
+                        // 循环播放：注册声音并调度重播（按歌曲时长约 180s 重播）
+                        if (plugin.isPlayerLooping(player.getUniqueId())) {
+                            plugin.setPlayerLoopingSound(player.getUniqueId(), pendingSound.getSoundEventName());
+                            plugin.scheduleLoopTask(player.getUniqueId(), 20L * plugin.getConfig().getInt("player.loopIntervalSeconds", 180));
+                        }
+                    } else if (pendingSound != null && (tempPackFileName == null || !tempPackFileName.equals(pendingSound.getPackFileName()))){
+                        plugin.getLogger().warning("玩家 " + player.getName() + " 成功加载了资源包，但待播放的独立/预设音乐信息不匹配或包文件名缺失。文件名: " + tempPackFileName + ", 期望: " + (pendingSound.getPackFileName() != null ? pendingSound.getPackFileName() : "null"));
                         if (plugin.shouldUseMergedPackLogic()) {
                             plugin.sendOriginalBasePackToPlayer(player);
                         }
                     }
                 } else if (packTypeOrSoundSource.equals("room") && roomIdForRoomType != null) {
                     MusicRoom room = plugin.getMusicRoom(roomIdForRoomType);
-                    if (room != null && room.isPlayRequestActive() && plugin.getHttpFileServer() != null &&
+                    if (room != null && room.getPlayRequestActive() && plugin.getHttpFileServer() != null &&
                             tempPackFileName != null && Objects.equals(tempPackFileName, room.getPackFileName())) {
                         String soundEventName = plugin.getHttpFileServer().getServePathPrefix() + ".room." + room.getRoomId();
                         player.playSound(player.getLocation(), soundEventName, SoundCategory.MUSIC, 1.0f, 1.0f);
                         plugin.getLogger().info("播放房间音乐: " + soundEventName + " for " + player.getName() + " in room " + roomIdForRoomType);
                         room.updateLastActivityTime();
                         room.setStatus(MusicRoom.RoomStatus.PLAYING);
-                    } else if (room != null && (!room.isPlayRequestActive() || (room.getPackFileName() != null && !Objects.equals(tempPackFileName, room.getPackFileName())))) {
+                    } else if (room != null && (!room.getPlayRequestActive() || (room.getPackFileName() != null && !Objects.equals(tempPackFileName, room.getPackFileName())))) {
                         plugin.getLogger().warning("玩家 " + player.getName() + " 加载了过时的房间资源包 " + tempPackFileName + " (房间 " + roomIdForRoomType + "). 正在恢复基础包。");
                         if (tempPackFileName != null && plugin.getResourcePackGenerator() != null && !plugin.isPrewarmedPackFile(tempPackFileName)) {
                             plugin.getResourcePackGenerator().cleanupPack(tempPackFileName);
@@ -214,6 +221,44 @@ public class PlayerResourceListener implements Listener {
             return;
         }
 
+        // 控制按钮：随机播放 / 循环 / 音量减 / 音量加
+        String randomRaw = plugin.getLangMessage("gui.random");
+        String loopRaw = plugin.getLangMessage("gui.loop");
+        String volDownRaw = plugin.getLangMessage("gui.volumeDown");
+        String volUpRaw = plugin.getLangMessage("gui.volumeUp");
+        String randomName = ChatColor.translateAlternateColorCodes('&', randomRaw != null ? randomRaw : "§a随机播放");
+        String loopName = ChatColor.translateAlternateColorCodes('&', loopRaw != null ? loopRaw : "§e循环");
+        String volDownName = ChatColor.translateAlternateColorCodes('&', volDownRaw != null ? volDownRaw : "§c音量 -");
+        String volUpName = ChatColor.translateAlternateColorCodes('&', volUpRaw != null ? volUpRaw : "§a音量 +");
+
+        if (itemName.equals(randomName)) {
+            musicCommands.playRandomSongFromAlbum(player, currentGui.getCurrentAlbum());
+            return;
+        }
+        if (itemName.equals(loopName)) {
+            boolean newState = !plugin.isPlayerLooping(player.getUniqueId());
+            plugin.setPlayerLoopStatus(player.getUniqueId(), newState);
+            if (!newState) {
+                plugin.cancelPlayerLoop(player.getUniqueId());
+            }
+            plugin.sendConfigMsg(player, "messages.bf.loop.toggled",
+                    "state", newState ? "§a开启" : "§c关闭");
+            currentGui.openView(player);
+            return;
+        }
+        if (itemName.equals(volDownName)) {
+            float newVol = plugin.adjustPlayerVolume(player.getUniqueId(), -0.1f);
+            plugin.sendConfigMsg(player, "messages.bf.volume.set", "percent", String.valueOf(Math.round(newVol * 100)));
+            currentGui.openView(player);
+            return;
+        }
+        if (itemName.equals(volUpName)) {
+            float newVol = plugin.adjustPlayerVolume(player.getUniqueId(), 0.1f);
+            plugin.sendConfigMsg(player, "messages.bf.volume.set", "percent", String.valueOf(Math.round(newVol * 100)));
+            currentGui.openView(player);
+            return;
+        }
+
         // 歌曲点击播放
         List<PresetSong> songList = currentGui.getCurrentAlbum() == null
                 ? plugin.getPresetSongs()
@@ -251,6 +296,7 @@ public class PlayerResourceListener implements Listener {
         plugin.clearPendingSingleUserSound(player.getUniqueId());
         plugin.clearPlayerPendingPackType(player.getUniqueId());
         plugin.clearPlayerPackRequestId(player.getUniqueId());
+        plugin.cancelPlayerLoop(player.getUniqueId());
 
         String currentTempMusicFile = plugin.getPlayerCurrentMusicPackFile(player.getUniqueId());
         if (currentTempMusicFile != null && plugin.getResourcePackGenerator() != null && !plugin.isPrewarmedPackFile(currentTempMusicFile)) {

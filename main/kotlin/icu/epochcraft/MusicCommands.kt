@@ -1,0 +1,578 @@
+package icu.epochcraft
+
+import org.apache.commons.codec.DecoderException
+import org.apache.commons.codec.binary.Hex
+import org.bukkit.Bukkit
+import org.bukkit.ChatColor
+import org.bukkit.SoundCategory
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.command.TabCompleter
+import org.bukkit.entity.Player
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import java.util.logging.Level
+
+/**
+ * 命令处理：/bf 主命令及补全（Kotlin 半重写）
+ */
+class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, TabCompleter {
+
+    enum class PlaybackContextType { SINGLE, ROOM }
+
+    private fun canExecute(sender: CommandSender, permissionKey: String, playerOnly: Boolean): Boolean {
+        if (playerOnly && sender !is Player) {
+            plugin.sendConfigMsg(sender, "messages.general.playerOnly")
+            return false
+        }
+        val isConsole = sender is org.bukkit.command.ConsoleCommandSender
+        if (!sender.hasPermission(permissionKey) &&
+            !(isConsole && (permissionKey == "playermusic.reload" || permissionKey == "playermusic.info"))) {
+            plugin.sendConfigMsg(sender, "messages.general.noPermission")
+            return false
+        }
+        return true
+    }
+
+    private fun handleLeavePreviousRoom(player: Player, newRoomToJoin: MusicRoom?) {
+        plugin.getActiveMusicRoomsView().firstOrNull { r -> r.isMember(player) && (newRoomToJoin == null || r != newRoomToJoin) }?.let { otherRoom ->
+                otherRoom.removeMember(player)
+                plugin.sendConfigMsg(player, "messages.bf.join.leftOtherRoom", "other_room_description", otherRoom.description)
+                val playerCurrentTempPack = plugin.getPlayerCurrentMusicPackFile(player.uniqueId)
+                if (otherRoom.packFileName != null && otherRoom.packFileName == playerCurrentTempPack && !plugin.isPrewarmedPackFile(playerCurrentTempPack)) {
+                    plugin.clearPlayerCurrentMusicPack(player.uniqueId)
+                    if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(player)
+                }
+            }
+    }
+
+    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
+        if (command.name.equals("bf", ignoreCase = true)) {
+            if (args.isEmpty()) {
+                plugin.sendConfigMsg(sender, "messages.bf.usage")
+                return true
+            }
+            when (args[0].lowercase()) {
+                "play" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val playerForPlay = sender as? Player ?: return true
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(playerForPlay, "messages.bf.play.usage")
+                        return true
+                    }
+                    val songIdentifier = args[1]
+                    val songToPlay = findFolderSong(songIdentifier)
+                    if (songToPlay != null) {
+                        handlePlay(playerForPlay, songToPlay.url, PlaybackContextType.SINGLE, null, songToPlay)
+                    } else {
+                        plugin.sendConfigMsg(playerForPlay, "messages.bf.play.notFound", "song", songIdentifier)
+                    }
+                    return true
+                }
+
+                "random" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val playerForRandom = sender as? Player ?: return true
+                    playRandomSong(playerForRandom)
+                    return true
+                }
+
+                "loop" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val playerForLoop = sender as? Player ?: return true
+                    val newLoopState = !plugin.isPlayerLooping(playerForLoop.uniqueId)
+                    plugin.setPlayerLoopStatus(playerForLoop.uniqueId, newLoopState)
+                    if (!newLoopState) {
+                        plugin.cancelPlayerLoop(playerForLoop.uniqueId)
+                    }
+                    plugin.sendConfigMsg(playerForLoop, "messages.bf.loop.toggled", "state", if (newLoopState) "§a开启" else "§c关闭")
+                    return true
+                }
+
+                "volume" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val playerForVolume = sender as? Player ?: return true
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(playerForVolume, "messages.bf.volume.usage")
+                        return true
+                    }
+                    try {
+                        val vol = args[1].toInt()
+                        val newVol = plugin.setPlayerVolume(playerForVolume.uniqueId, vol / 100f)
+                        plugin.sendConfigMsg(playerForVolume, "messages.bf.volume.set", "percent", Math.round(newVol * 100).toString())
+                    } catch (e: NumberFormatException) {
+                        plugin.sendConfigMsg(playerForVolume, "messages.bf.volume.invalid")
+                    }
+                    return true
+                }
+
+                "stop" -> {
+                    if (!canExecute(sender, "playermusic.stop", true)) return true
+                    val playerForStop = sender as? Player ?: return true
+                    val roomPlayerIsIn = plugin.getActiveMusicRoomsView().firstOrNull { it.isMember(playerForStop) }
+                    var stoppedSomething = false
+
+                    if (roomPlayerIsIn != null) {
+                        val roomSoundEventBase = plugin.httpFileServer!!.servePathPrefix + ".room." + roomPlayerIsIn.roomId
+                        if (roomPlayerIsIn.creator == playerForStop) {
+                            roomPlayerIsIn.stopPlaybackForAll()
+                            plugin.sendConfigMsg(playerForStop, "messages.bf.stop.roomStopped", "room_description", roomPlayerIsIn.description)
+                            val roomTempPack = roomPlayerIsIn.packFileName
+                            if (roomTempPack != null && !plugin.isPrewarmedPackFile(roomTempPack)) {
+                                for (member in HashSet(roomPlayerIsIn.members)) {
+                                    if (member.isOnline) {
+                                        val memberCurrentPack = plugin.getPlayerCurrentMusicPackFile(member.uniqueId)
+                                        if (roomTempPack == memberCurrentPack) {
+                                            plugin.clearPlayerCurrentMusicPack(member.uniqueId)
+                                            if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(member)
+                                        }
+                                    }
+                                }
+                            }
+                            stoppedSomething = true
+                        } else {
+                            playerForStop.stopSound(roomSoundEventBase, SoundCategory.MUSIC)
+                            val memberCurrentPack = plugin.getPlayerCurrentMusicPackFile(playerForStop.uniqueId)
+                            if (roomPlayerIsIn.packFileName != null && roomPlayerIsIn.packFileName == memberCurrentPack && !plugin.isPrewarmedPackFile(memberCurrentPack)) {
+                                plugin.clearPlayerCurrentMusicPack(playerForStop.uniqueId)
+                                if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(playerForStop)
+                            }
+                            plugin.sendConfigMsg(playerForStop, "messages.bf.stop.stoppedForSelfInRoom", "room_description", roomPlayerIsIn.description)
+                            stoppedSomething = true
+                        }
+                    } else {
+                        val pendingSoundInfo = plugin.getPendingSingleUserSound(playerForStop.uniqueId)
+                        val currentTempPack = plugin.getPlayerCurrentMusicPackFile(playerForStop.uniqueId)
+
+                        if (pendingSoundInfo != null) {
+                            playerForStop.stopSound(pendingSoundInfo.soundEventName, SoundCategory.MUSIC)
+                            plugin.logger.info("停止独立音乐: ${pendingSoundInfo.soundEventName} for ${playerForStop.name}")
+                            if (pendingSoundInfo.packFileName != null && plugin.resourcePackGenerator != null && !plugin.isPrewarmedPackFile(pendingSoundInfo.packFileName)) {
+                                plugin.resourcePackGenerator!!.cleanupPack(pendingSoundInfo.packFileName)
+                            }
+                            plugin.clearPendingSingleUserSound(playerForStop.uniqueId)
+                            stoppedSomething = true
+                        }
+                        if (currentTempPack != null && !plugin.isPrewarmedPackFile(currentTempPack)) {
+                            val isRoomPack = plugin.getActiveMusicRoomsView().any { currentTempPack == it.packFileName }
+                            if (!isRoomPack) {
+                                plugin.resourcePackGenerator?.cleanupPack(currentTempPack)
+                                plugin.logger.info("清理当前玩家独立音乐包: $currentTempPack for ${playerForStop.name}")
+                                if (!stoppedSomething) stoppedSomething = true
+                            }
+                        }
+
+                        if (stoppedSomething) {
+                            plugin.clearPlayerCurrentMusicPack(playerForStop.uniqueId)
+                            plugin.clearPlayerPendingPackType(playerForStop.uniqueId)
+                            plugin.cancelPlayerLoop(playerForStop.uniqueId)
+                            if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(playerForStop)
+                            plugin.sendConfigMsg(playerForStop, "messages.bf.stop.stoppedForSelf")
+                        }
+                    }
+
+                    if (!stoppedSomething) {
+                        plugin.sendConfigMsg(playerForStop, "messages.bf.stop.notPlaying")
+                    }
+                    return true
+                }
+
+                "gui" -> {
+                    if (!canExecute(sender, "playermusic.gui", true)) return true
+                    val playerForGui = sender as? Player ?: return true
+                    MusicGUI(plugin).open(playerForGui)
+                    return true
+                }
+
+                "createroom" -> {
+                    if (!canExecute(sender, "playermusic.createroom", true)) return true
+                    val creator = sender as? Player ?: return true
+                    if (args.size < 3) {
+                        plugin.sendConfigMsg(creator, "messages.bf.createroom.usage")
+                        return true
+                    }
+                    val roomSongIdentifier = args[1]
+                    val roomSong = findFolderSong(roomSongIdentifier)
+                    if (roomSong == null) {
+                        plugin.sendConfigMsg(creator, "messages.bf.play.notFound", "song", roomSongIdentifier)
+                        return true
+                    }
+                    val roomMusicUrl = roomSong.url
+                    val descriptionInput = args.drop(2).joinToString(" ").trim()
+                    if (descriptionInput.isEmpty()) {
+                        plugin.sendConfigMsg(creator, "messages.bf.createroom.noDescription")
+                        return true
+                    }
+                    val existingRoomByCreator = plugin.getActiveMusicRoomsView().firstOrNull { it.creator == creator }
+                    if (existingRoomByCreator != null) {
+                        plugin.sendConfigMsg(creator, "messages.bf.createroom.alreadyCreated", "room_description", existingRoomByCreator.description)
+                        return true
+                    }
+                    val newRoom = plugin.createMusicRoom(creator, roomMusicUrl, descriptionInput)
+                    plugin.sendConfigMsg(creator, "messages.bf.createroom.successWithStartHint", "description", newRoom.description, "url", roomSong.name)
+                    for (onlinePlayer in Bukkit.getOnlinePlayers()) {
+                        if (onlinePlayer != creator) {
+                            plugin.sendConfigMsg(onlinePlayer, "messages.bf.createroom.broadcast", "creator_name", creator.name, "description", newRoom.description)
+                        }
+                    }
+                    return true
+                }
+
+                "join" -> {
+                    if (!canExecute(sender, "playermusic.joinroom", true)) return true
+                    val joiner = sender as? Player ?: return true
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(joiner, "messages.bf.join.usage")
+                        return true
+                    }
+                    val creatorName = args[1]
+                    val targetRoom = plugin.findMusicRoomByCreatorName(creatorName)
+                    if (targetRoom == null) {
+                        plugin.sendConfigMsg(joiner, "messages.bf.join.roomNotFound", "creator", creatorName)
+                        return true
+                    }
+                    if (targetRoom.creator == joiner) {
+                        plugin.sendConfigMsg(joiner, "messages.bf.join.alreadyCreator", "room_description", targetRoom.description)
+                        return true
+                    }
+                    if (targetRoom.isMember(joiner)) {
+                        plugin.sendConfigMsg(joiner, "messages.bf.join.alreadyMember", "room_description", targetRoom.description)
+                        return true
+                    }
+                    handleLeavePreviousRoom(joiner, targetRoom)
+                    targetRoom.addMember(joiner)
+                    plugin.sendConfigMsg(joiner, "messages.bf.join.successNoAutoPlay", "room_description", targetRoom.description)
+                    if (targetRoom.status == MusicRoom.RoomStatus.PLAYING && targetRoom.packFileName != null) {
+                        handlePlay(joiner, targetRoom.musicUrl, PlaybackContextType.ROOM, targetRoom, null)
+                    }
+                    return true
+                }
+
+                "start" -> {
+                    if (!canExecute(sender, "playermusic.room.start", true)) return true
+                    val roomStarter = sender as? Player ?: return true
+                    val roomToStart = plugin.getActiveMusicRoomsView().firstOrNull { it.creator == roomStarter }
+                    if (roomToStart == null) {
+                        plugin.sendConfigMsg(roomStarter, "messages.bf.room.start.notRoomCreator")
+                        return true
+                    }
+                    if (roomToStart.musicUrl.isEmpty()) {
+                        plugin.sendConfigMsg(roomStarter, "messages.bf.room.start.noMusicUrl", "room_description", roomToStart.description)
+                        return true
+                    }
+                    roomToStart.playRequestActive = true
+                    val memberNotification = plugin.getLangMessage("messages.bf.room.start.memberStartNotification")
+                    for (member in ArrayList(roomToStart.members)) {
+                        if (member.isOnline) {
+                            handlePlay(member, roomToStart.musicUrl, PlaybackContextType.ROOM, roomToStart, null)
+                            if (member != roomStarter && memberNotification != null && memberNotification.isNotEmpty()) {
+                                plugin.sendLegacyMsg(member, memberNotification, "room_description", roomToStart.description, "creator_name", roomToStart.creator.name)
+                            }
+                        }
+                    }
+                    plugin.sendConfigMsg(roomStarter, "messages.bf.room.start.started", "room_description", roomToStart.description)
+                    return true
+                }
+
+                "roomplay" -> {
+                    if (!canExecute(sender, "playermusic.room.roomplay", true)) return true
+                    val roomPlayRequester = sender as? Player ?: return true
+                    val ownRoom = plugin.getActiveMusicRoomsView().firstOrNull { it.creator == roomPlayRequester }
+                    if (ownRoom == null) {
+                        plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.notRoomCreator")
+                        return true
+                    }
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.usage")
+                        return true
+                    }
+                    val newRoomSong = findFolderSong(args[1])
+                    if (newRoomSong == null) {
+                        plugin.sendConfigMsg(roomPlayRequester, "messages.bf.play.notFound", "song", args[1])
+                        return true
+                    }
+                    val newMusicUrl = newRoomSong.url
+                    if (newMusicUrl.equals(ownRoom.musicUrl, ignoreCase = true)) {
+                        plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.urlSame", "room_description", ownRoom.description)
+                        return true
+                    }
+                    if (ownRoom.status == MusicRoom.RoomStatus.PLAYING || ownRoom.playRequestActive) {
+                        ownRoom.stopPlaybackForAll()
+                        val oldRoomTempPack = ownRoom.packFileName
+                        if (oldRoomTempPack != null && !plugin.isPrewarmedPackFile(oldRoomTempPack)) {
+                            for (member in HashSet(ownRoom.members)) {
+                                if (member.isOnline) {
+                                    val memberCurrentPack = plugin.getPlayerCurrentMusicPackFile(member.uniqueId)
+                                    if (oldRoomTempPack == memberCurrentPack) {
+                                        plugin.clearPlayerCurrentMusicPack(member.uniqueId)
+                                        if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(member)
+                                    }
+                                }
+                            }
+                            plugin.resourcePackGenerator?.cleanupPack(oldRoomTempPack)
+                        }
+                        ownRoom.packFileName = null
+                    }
+                    ownRoom.musicUrl = newMusicUrl
+                    plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.urlSet", "room_description", ownRoom.description, "url", newRoomSong.name)
+                    plugin.sendConfigMsg(roomPlayRequester, "messages.bf.room.play.startHint")
+                    return true
+                }
+
+                "disbandroom" -> {
+                    if (!canExecute(sender, "playermusic.disbandroom", true)) return true
+                    val disbandRequester = sender as? Player ?: return true
+                    val roomToDisband = plugin.getActiveMusicRoomsView().firstOrNull { it.creator == disbandRequester }
+                    if (roomToDisband == null) {
+                        plugin.sendConfigMsg(disbandRequester, "messages.bf.disbandroom.notCreatorOrNoRoom")
+                        return true
+                    }
+                    val disbandedRoomDesc = roomToDisband.description
+                    val roomSoundEventToStop = plugin.httpFileServer!!.servePathPrefix + ".room." + roomToDisband.roomId
+                    for (member in HashSet(roomToDisband.members)) {
+                        if (member.isOnline) member.stopSound(roomSoundEventToStop, SoundCategory.MUSIC)
+                    }
+                    plugin.removeMusicRoom(roomToDisband.roomId)
+                    plugin.sendConfigMsg(disbandRequester, "messages.bf.disbandroom.success", "room_description", disbandedRoomDesc)
+                    return true
+                }
+
+                "reload" -> {
+                    if (!canExecute(sender, "playermusic.reload", false)) return true
+                    plugin.reloadPluginConfiguration()
+                    plugin.sendConfigMsg(sender, "messages.bf.reload.success")
+                    return true
+                }
+
+                "rescan" -> {
+                    if (!canExecute(sender, "playermusic.reload", false)) return true
+                    val addedSongs = plugin.rescanMusicFolder()
+                    plugin.sendConfigMsg(sender, "messages.bf.rescan.success", "count", addedSongs.toString())
+                    return true
+                }
+
+                "info" -> {
+                    if (!canExecute(sender, "playermusic.info", false)) return true
+                    val pdf = plugin.description
+                    sender.sendMessage(ChatColor.GOLD.toString() + "--- [" + ChatColor.YELLOW.toString() + "PlayerMusic 信息" + ChatColor.GOLD + "] ---")
+                    sender.sendMessage(ChatColor.AQUA.toString() + "作者: " + ChatColor.WHITE.toString() + pdf.authors.joinToString(", "))
+                    sender.sendMessage(ChatColor.AQUA.toString() + "版本: " + ChatColor.WHITE.toString() + pdf.version)
+                    sender.sendMessage(ChatColor.AQUA.toString() + "描述: " + ChatColor.WHITE.toString() + (pdf.description ?: "N/A"))
+                    sender.sendMessage(ChatColor.GOLD.toString() + "-----------------------------")
+                    return true
+                }
+
+                else -> {
+                    plugin.sendConfigMsg(sender, "messages.bf.unknownCommand")
+                    return true
+                }
+            }
+        } else if (command.name.equals("internal_join_room", ignoreCase = true)) {
+            val playerToJoin = sender as? Player ?: return true
+            if (args.isEmpty()) return true
+            val roomId = args[0]
+            val roomToJoin = plugin.getMusicRoom(roomId)
+            if (roomToJoin != null) {
+                if (!roomToJoin.isMember(playerToJoin) && roomToJoin.creator != playerToJoin) {
+                    handleLeavePreviousRoom(playerToJoin, roomToJoin)
+                    roomToJoin.addMember(playerToJoin)
+                    plugin.sendConfigMsg(playerToJoin, "messages.bf.join.successNoAutoPlay", "room_description", roomToJoin.description)
+                    if (roomToJoin.status == MusicRoom.RoomStatus.PLAYING && roomToJoin.packFileName != null) {
+                        handlePlay(playerToJoin, roomToJoin.musicUrl, PlaybackContextType.ROOM, roomToJoin, null)
+                    }
+                } else {
+                    plugin.sendConfigMsg(playerToJoin, "messages.bf.join.alreadyMember", "room_description", roomToJoin.description)
+                }
+            } else {
+                plugin.sendConfigMsg(playerToJoin, "messages.bf.join.internalRoomNotFound")
+            }
+            return true
+        }
+        return false
+    }
+
+    /** 从音乐文件夹的歌曲列表中按名称或序号查找歌曲 */
+    private fun findFolderSong(identifier: String): PresetSong? {
+        val songs = plugin.getPresetSongs()
+        return songs.firstOrNull { s ->
+            val strippedName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', s.name))
+            strippedName.equals(identifier, ignoreCase = true) ||
+                identifier.equals((songs.indexOf(s) + 1).toString(), ignoreCase = true)
+        }
+    }
+
+    /** 随机播放一首歌曲 */
+    private fun playRandomSong(player: Player) {
+        val songs = plugin.getPresetSongs()
+        if (songs.isEmpty()) {
+            plugin.sendConfigMsg(player, "messages.general.noSongs")
+            return
+        }
+        val randomSong = songs[(Math.random() * songs.size).toInt()]
+        handlePlay(player, randomSong.url, PlaybackContextType.SINGLE, null, randomSong)
+        plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", ChatColor.translateAlternateColorCodes('&', randomSong.name))
+    }
+
+    /** 在当前浏览的专辑中随机播放（GUI 用） */
+    fun playRandomSongFromAlbum(player: Player, album: String?) {
+        val songs = if (album == null) plugin.getPresetSongs() else plugin.getSongsByAlbum(album)
+        if (songs.isEmpty()) {
+            plugin.sendConfigMsg(player, "messages.general.noSongs")
+            return
+        }
+        val randomSong = songs[(Math.random() * songs.size).toInt()]
+        handlePlay(player, randomSong.url, PlaybackContextType.SINGLE, null, randomSong)
+        plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", ChatColor.translateAlternateColorCodes('&', randomSong.name))
+    }
+
+    fun handlePlay(player: Player, url: String, contextType: PlaybackContextType, roomContext: MusicRoom?, presetContext: PresetSong?) {
+        if (plugin.resourcePackGenerator == null || plugin.httpFileServer == null || !plugin.httpFileServer!!.isRunning) {
+            plugin.sendConfigMsg(player, "messages.general.httpDisabled")
+            return
+        }
+        if (url.isEmpty()) {
+            plugin.sendConfigMsg(player, "messages.general.invalidUrl")
+            return
+        }
+        if (plugin.shouldUseMergedPackLogic() && (plugin.getBasePackFile() == null || !plugin.getBasePackFile()!!.exists())) {
+            plugin.sendConfigMsg(player, "messages.general.basePackMissing")
+            return
+        }
+
+        // 播放新歌时取消旧循环，等待新歌加载后按需重建
+        if (contextType == PlaybackContextType.SINGLE) {
+            plugin.cancelPlayerLoop(player.uniqueId)
+        }
+
+        val currentRoomPlayerIsIn = plugin.getActiveMusicRoomsView().firstOrNull { it.isMember(player) }
+        if (contextType != PlaybackContextType.ROOM || roomContext == null || roomContext != currentRoomPlayerIsIn) {
+            val existingSingleSound = plugin.getPendingSingleUserSound(player.uniqueId)
+            if (existingSingleSound != null) {
+                player.stopSound(existingSingleSound.soundEventName, SoundCategory.MUSIC)
+                if (existingSingleSound.packFileName != null && plugin.resourcePackGenerator != null && !plugin.isPrewarmedPackFile(existingSingleSound.packFileName)) {
+                    plugin.resourcePackGenerator!!.cleanupPack(existingSingleSound.packFileName)
+                }
+                plugin.clearPendingSingleUserSound(player.uniqueId)
+                plugin.clearPlayerCurrentMusicPack(player.uniqueId)
+            } else {
+                val currentPack = plugin.getPlayerCurrentMusicPackFile(player.uniqueId)
+                if (currentPack != null && !plugin.isPrewarmedPackFile(currentPack) &&
+                    (currentRoomPlayerIsIn == null || currentPack != currentRoomPlayerIsIn.packFileName)) {
+                    player.stopSound(SoundCategory.MUSIC)
+                    plugin.resourcePackGenerator?.cleanupPack(currentPack)
+                    plugin.clearPlayerCurrentMusicPack(player.uniqueId)
+                }
+            }
+        }
+
+        val soundEventName: String
+        if (contextType == PlaybackContextType.SINGLE && presetContext != null) {
+            soundEventName = plugin.httpFileServer!!.servePathPrefix + ".preset." + plugin.createStableIdentifier(presetContext.url)
+            plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", ChatColor.translateAlternateColorCodes('&', presetContext.name))
+        } else if (contextType == PlaybackContextType.ROOM && roomContext != null) {
+            soundEventName = plugin.httpFileServer!!.servePathPrefix + ".room." + roomContext.roomId
+            plugin.sendConfigMsg(player, "messages.bf.room.start.startingMusic", "room_description", roomContext.description)
+        } else {
+            val randomId = UUID.randomUUID().toString().substring(0, 4)
+            val uniquePlayerIdPart = player.uniqueId.toString().substring(0, 8)
+            soundEventName = plugin.httpFileServer!!.servePathPrefix + ".single." + uniquePlayerIdPart + "." + randomId
+            plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", "音乐")
+        }
+
+        plugin.resourcePackGenerator!!.generateAndServePack(player, url, soundEventName, contextType == PlaybackContextType.ROOM, roomContext)
+            .thenAccept { packInfo ->
+                if (packInfo != null) {
+                    Bukkit.getScheduler().runTask(plugin, Runnable {
+                        val promptMessage = plugin.getMusicPackPromptMessage()
+                        val sha1Bytes: ByteArray
+                        try {
+                            sha1Bytes = Hex.decodeHex(packInfo.sha1())
+                        } catch (e: DecoderException) {
+                            plugin.logger.log(Level.SEVERE, "无效的SHA-1哈希值: ${packInfo.sha1()}", e)
+                            plugin.sendConfigMsg(player, "messages.playurl.error")
+                            roomContext?.playRequestActive = false
+                            if (!plugin.isPrewarmedPackFile(packInfo.packFileName())) {
+                                plugin.resourcePackGenerator!!.cleanupPack(packInfo.packFileName())
+                            }
+                            if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(player)
+                            return@Runnable
+                        }
+                        val packId = UUID.nameUUIDFromBytes(("playermusic-$soundEventName").toByteArray(StandardCharsets.UTF_8))
+                        plugin.setPlayerPackRequestId(player.uniqueId, packId)
+                        player.setResourcePack(packId, packInfo.packUrl(), sha1Bytes, plugin.legacyToComponent(promptMessage), true)
+
+                        if (contextType == PlaybackContextType.ROOM && roomContext != null) {
+                            plugin.markPlayerPendingRoomPack(player.uniqueId, roomContext.roomId, packInfo.packFileName())
+                        } else {
+                            plugin.addPendingSingleUserSound(player.uniqueId,
+                                MusicPlayerPlugin.PendingOnlineSound(packInfo.packFileName(), soundEventName, packInfo.sha1(), player, packInfo.packUrl()))
+                        }
+                    })
+                } else {
+                    plugin.sendConfigMsg(player, "messages.playurl.packCreationFailed")
+                    roomContext?.playRequestActive = false
+                }
+            }
+            .exceptionally { ex ->
+                plugin.logger.log(Level.WARNING, "处理播放请求时出错 for ${player.name} (URL: $url): ${ex.message}", ex)
+                plugin.sendConfigMsg(player, "messages.playurl.error")
+                roomContext?.playRequestActive = false
+                null
+            }
+    }
+
+    override fun onTabComplete(sender: CommandSender, command: Command, alias: String, args: Array<out String>): List<String>? {
+        val completions = ArrayList<String>()
+        if (command.name.equals("bf", ignoreCase = true)) {
+            when {
+                args.size == 1 -> {
+                    val input = args[0].lowercase()
+                    val subCommands = ArrayList(listOf("play", "random", "loop", "volume", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"))
+                    if (sender is Player) {
+                        subCommands.removeIf { cmd ->
+                            var perm = "playermusic.$cmd"
+                            if (cmd == "start" || cmd == "roomplay") perm = "playermusic.room.$cmd"
+                            !sender.hasPermission(perm)
+                        }
+                    } else {
+                        subCommands.removeIf { it != "reload" && it != "info" }
+                    }
+                    addMatchingCompletions(completions, input, *subCommands.toTypedArray())
+                }
+
+                args.size == 2 -> {
+                    val subCommand = args[0].lowercase()
+                    val input = args[1].lowercase()
+                    when {
+                        subCommand == "play" && sender.hasPermission("playermusic.play") -> addSongCompletions(completions, input)
+                        subCommand == "join" && sender.hasPermission("playermusic.joinroom") ->
+                            plugin.getActiveMusicRoomsView().map { it.creator.name }
+                                .filter { it.lowercase().startsWith(input) }.distinct().forEach { completions.add(it) }
+                        subCommand == "roomplay" && sender.hasPermission("playermusic.room.roomplay") -> addSongCompletions(completions, input)
+                        subCommand == "createroom" && sender.hasPermission("playermusic.createroom") -> addSongCompletions(completions, input)
+                    }
+                }
+
+                args.size == 3 && args[0].equals("createroom", ignoreCase = true) && sender.hasPermission("playermusic.createroom") ->
+                    completions.add("<房间描述>")
+            }
+        }
+        return completions.distinct()
+    }
+
+    private fun addSongCompletions(completions: MutableList<String>, input: String) {
+        plugin.getPresetSongs().forEachIndexed { index, song ->
+            val songIndexStr = (index + 1).toString()
+            if (songIndexStr.startsWith(input)) completions.add(songIndexStr)
+            val cleanName = (ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', song.name)) ?: "").replace(" ", "_")
+            if (cleanName.lowercase().startsWith(input)) completions.add(cleanName)
+        }
+    }
+
+    private fun addMatchingCompletions(completions: MutableList<String>, input: String, vararg options: String) {
+        for (option in options) {
+            if (option.lowercase().startsWith(input.lowercase())) completions.add(option)
+        }
+    }
+}

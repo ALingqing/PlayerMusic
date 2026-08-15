@@ -6,7 +6,7 @@
 
     <groupId>icu.epochcraft</groupId>
     <artifactId>PlayerMusic</artifactId>
-    <version>1.1.71</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>PlayerMusic</name>
@@ -14,7 +14,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>23</maven.compiler.release>
+        <kotlin.version>2.1.20</kotlin.version>
         <!-- Paper 26.2 (Minecraft Java 26.2) -->
         <paper.api.version>26.2.build.112-stable</paper.api.version>
     </properties>
@@ -34,6 +35,14 @@
             <version>${paper.api.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Kotlin 标准库 (运行时需要，必须打包进插件 jar) -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>${kotlin.version}</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -47,13 +56,50 @@
         </resources>
 
         <plugins>
+            <!-- Kotlin 编译（Java + Kotlin 混合编译） -->
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>${kotlin.version}</version>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirs>
+                                <sourceDir>main/kotlin</sourceDir>
+                                <sourceDir>main/java</sourceDir>
+                            </sourceDirs>
+                            <jvmTarget>23</jvmTarget>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>test-compile</id>
+                        <phase>process-test-sources</phase>
+                        <goals>
+                            <goal>test-compile</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirs>
+                                <sourceDir>main/kotlin</sourceDir>
+                                <sourceDir>main/java</sourceDir>
+                            </sourceDirs>
+                            <jvmTarget>23</jvmTarget>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- 编译 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>25</release>
+                    <release>23</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
@@ -66,6 +112,35 @@
                 <configuration>
                     <encoding>UTF-8</encoding>
                 </configuration>
+            </plugin>
+
+            <!-- 将 kotlin-stdlib 打进插件 jar (运行时需要) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

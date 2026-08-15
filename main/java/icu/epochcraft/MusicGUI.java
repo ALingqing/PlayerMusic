@@ -25,6 +25,9 @@ public class MusicGUI {
     /** 专辑视图（浏览子文件夹分类） */
     private boolean albumListView = true;
 
+    /** 最近一次打开此 GUI 的玩家（用于显示音量/循环状态） */
+    private Player lastViewer = null;
+
     private static final Map<UUID, MusicGUI> openGUIs = new HashMap<>();
 
     public MusicGUI(MusicPlayerPlugin plugin) {
@@ -44,7 +47,9 @@ public class MusicGUI {
         openView(player);
     }
 
-    private void openView(Player player) {
+    /** 重新渲染当前视图（公开给监听器在音量/循环变化后刷新） */
+    public void openView(Player player) {
+        this.lastViewer = player;
         String baseTitle = plugin.getLangMessage("gui.title");
         if (baseTitle == null) baseTitle = "§9音乐播放器";
 
@@ -190,6 +195,43 @@ public class MusicGUI {
             if (nextName == null) nextName = "§a下一页 ->";
             currentInventory.setItem(53, createNavItem(nextName, plugin.getConfig().getString("gui.nextPageItem", "ARROW")));
         }
+
+        populateControlButtons(currentInventory);
+    }
+
+    /** 底部控制按钮：随机播放 / 循环开关 / 音量减 / 音量加 */
+    private void populateControlButtons(Inventory currentInventory) {
+        String randomName = ChatColor.translateAlternateColorCodes('&', plugin.getLangMessage("gui.random"));
+        if (randomName == null || randomName.equals("null")) randomName = "§a随机播放";
+        currentInventory.setItem(47, createControlItem(randomName, Material.HOPPER, "§7从当前列表随机播放一首"));
+
+        String loopNameRaw = plugin.getLangMessage("gui.loop");
+        if (loopNameRaw == null || loopNameRaw.equals("null")) loopNameRaw = "§e循环";
+        String loopStateDesc = (lastViewer != null && plugin.isPlayerLooping(lastViewer.getUniqueId())) ? "§a已开启" : "§c已关闭";
+        currentInventory.setItem(48, createControlItem(loopNameRaw, Material.REPEATER, "§7当前: " + loopStateDesc));
+
+        String volDownRaw = plugin.getLangMessage("gui.volumeDown");
+        String volUpRaw = plugin.getLangMessage("gui.volumeUp");
+        if (volDownRaw == null || volDownRaw.equals("null")) volDownRaw = "§c音量 -";
+        if (volUpRaw == null || volUpRaw.equals("null")) volUpRaw = "§a音量 +";
+        int currentVolPercent = lastViewer != null ? Math.round(plugin.getPlayerVolume(lastViewer.getUniqueId()) * 100) : 100;
+        currentInventory.setItem(50, createControlItem(volDownRaw, Material.STONE_BUTTON, "§7当前音量: " + currentVolPercent + "%", "§7降低音量"));
+        currentInventory.setItem(52, createControlItem(volUpRaw, Material.OAK_BUTTON, "§7当前音量: " + currentVolPercent + "%", "§7提高音量"));
+    }
+
+    private ItemStack createControlItem(String name, Material material, String... loreLines) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', name));
+            List<String> lore = new ArrayList<>();
+            for (String line : loreLines) {
+                lore.add(ChatColor.translateAlternateColorCodes('&', line));
+            }
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     /** 进入指定专辑 */
