@@ -17,11 +17,20 @@ object AudioConverter {
     val isAvailable: Boolean by lazy { findFfmpeg() != null }
 
     private fun findFfmpeg(): String? {
-        // 1. 系统 PATH
+        // 1. 插件内置 ffmpeg（启动时已解压到 plugins/PlayerMusic/native/ffmpeg）
+        try {
+            val pluginFolder = File(MusicPlayerPlugin::class.java.protectionDomain.codeSource.location.toURI()).parentFile
+            val nativeFfmpeg = File(pluginFolder, "native/ffmpeg")
+            if (nativeFfmpeg.exists() && nativeFfmpeg.isFile && canRun(nativeFfmpeg.absolutePath)) {
+                return nativeFfmpeg.absolutePath
+            }
+        } catch (_: Exception) {
+        }
+        // 2. 系统 PATH
         for (name in listOf("ffmpeg", "ffmpeg.exe")) {
             if (canRun(name)) return name
         }
-        // 2. 常见安装路径
+        // 3. 常见安装路径
         val candidates = mutableListOf<File>()
         val home = System.getProperty("user.home")
         if (home != null) {

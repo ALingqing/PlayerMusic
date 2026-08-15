@@ -34,53 +34,27 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 
 *   **Minecraft 服务器**: Paper 26.2 (Minecraft 26.2) 或兼容的服务端。
 *   **Java**: Java 25 或更高版本 (Minecraft 26.2 要求 Java SE 25)。
-*   **ffmpeg**: 仅使用 `/bf search`、`/bf download` 下载并自动转 OGG 时需要。
 *   **依赖**:
     *   Gson (用于 JSON 处理)
     *   Apache Commons Codec (用于 SHA-1 哈希计算)
 
-## 安装 ffmpeg (音乐搜索/下载需要)
+## 内置 ffmpeg (音乐搜索/下载开箱即用)
 
-插件会自动检测以下位置的 ffmpeg：
-*   系统 PATH 中的 `ffmpeg`
-*   `~/ffmpeg/bin/ffmpeg`
-*   `plugins/PlayerMusic/ffmpeg/bin/ffmpeg`
+插件 jar 内已内置 **Linux amd64 / arm64** 两个架构的静态 ffmpeg 二进制（gzip 压缩）：
 
-### 方式一：服务器控制台一键安装（推荐）
+*   插件启动时自动检测服务器操作系统与 CPU 架构
+*   自动解压匹配的 ffmpeg 到 `plugins/PlayerMusic/native/ffmpeg` 并设置可执行权限
+*   `/bf search`、`/bf download` 的 MP3→OGG 转换**无需额外安装任何东西**
 
-在服务器控制台执行以下任意一条命令：
+ffmpeg 检测优先级：
 
-**有 root/sudo（Debian/Ubuntu）：**
-```bash
-apt-get update && apt-get install -y ffmpeg && ffmpeg -version
-```
+1.  插件内置 ffmpeg（`plugins/PlayerMusic/native/ffmpeg`，自动释放）
+2.  系统 PATH 中的 `ffmpeg`
+3.  `~/ffmpeg/bin/ffmpeg`
 
-**无 root（Pterodactyl 等面板容器）：**
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ALingqing/PlayerMusic/main/install-ffmpeg.sh)
-```
-或下载到服务器后执行：
-```bash
-bash install-ffmpeg.sh
-```
+> **提示**：内置的 ffmpeg 是 Linux 版，仅支持 Linux 服务器（绝大多数 Minecraft 服务器都是 Linux）。若在 Windows 上运行服务器，需要自行安装 ffmpeg 并加入 PATH。
 
-脚本会自动：
-1. 检测是否已有 ffmpeg（已有则跳过）
-2. 检测架构（x86_64 / aarch64）
-3. 有 root/sudo 时用 `apt` 安装
-4. 无 root 时自动下载 ffmpeg 静态构建到 `~/ffmpeg/bin/` 并加入 PATH
-5. 安装完成后显示版本号验证
-
-安装后**重启服务器**即可让插件识别 ffmpeg。
-
-### 方式二：Pterodactyl 面板安装
-
-1. 面板 → 你的服务器 → **Startup** 选项卡
-2. 找到 **Docker Image** 参数
-3. 将镜像改为包含 ffmpeg 的镜像，例如：`ghcr.io/parkervcp/yolks:debian` 加上 ffmpeg 后自行构建；或直接使用预装 ffmpeg 的社区镜像
-4. 保存并重启服务器
-
-> **提示**：若不想安装 ffmpeg，只播放本地 `music` 文件夹里的 `.ogg` 文件则**无需**安装。仅当使用音乐搜索/下载功能时才需要。
+> **仅播放本地 `music` 文件夹 `.ogg` 文件**完全不需要 ffmpeg，无需担心。
 
 ## 安装步骤
 
