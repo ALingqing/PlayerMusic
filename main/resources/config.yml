@@ -44,3 +44,10 @@ musicFolder:
   lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
     - "§7自动识别的文件夹音乐"
     - "§7文件: <name>"
+
+# 音乐搜索/下载 API 设置 (柠柚 API: https://api.nycnm.cn)
+# 用于 /bf search 搜索歌曲、/bf download 下载音乐 (自动 MP3→OGG 转换后加入音乐库)
+musicApi:
+  enabled: true # 是否启用音乐搜索/下载功能 (true/false)
+  apiKey: "sk-E8D4C39ADA57026CC18FA168BC65" # 柠柚 API 的 apikey
+  quality: "standard" # 网易云音质: standard(标准) / exhigh(极高) / lossless(无损) / hires(Hi-Res)

@@ -22,6 +22,12 @@ permissions:
   playermusic.play:
     description: 允许使用 /bf play。
     default: true
+  playermusic.search:
+    description: 允许使用 /bf search 搜索音乐。
+    default: true
+  playermusic.download:
+    description: 允许使用 /bf download 下载音乐 (自动转 OGG 加入音乐库)。
+    default: op
   playermusic.stop:
     description: 允许使用 /bf stop。
     default: true

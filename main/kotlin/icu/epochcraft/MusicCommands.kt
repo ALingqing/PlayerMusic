@@ -107,6 +107,30 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                     return true
                 }
 
+                "search" -> {
+                    if (!canExecute(sender, "playermusic.search", true)) return true
+                    val playerForSearch = sender as? Player ?: return true
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(playerForSearch, "messages.bf.search.usage")
+                        return true
+                    }
+                    val query = args.drop(1).joinToString(" ")
+                    doSearch(playerForSearch, query)
+                    return true
+                }
+
+                "download" -> {
+                    if (!canExecute(sender, "playermusic.download", true)) return true
+                    val playerForDownload = sender as? Player ?: return true
+                    if (args.size < 2) {
+                        plugin.sendConfigMsg(playerForDownload, "messages.bf.download.usage")
+                        return true
+                    }
+                    val input = args[1]
+                    doDownload(playerForDownload, input)
+                    return true
+                }
+
                 "stop" -> {
                     if (!canExecute(sender, "playermusic.stop", true)) return true
                     val playerForStop = sender as? Player ?: return true
@@ -426,6 +450,113 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         plugin.sendConfigMsg(player, "messages.bf.play.preparing", "song_name", ChatColor.translateAlternateColorCodes('&', randomSong.name))
     }
 
+    // ===================== 音乐搜索 / 下载 =====================
+
+    /** 搜索歌曲（异步），结果存到玩家临时搜索结果并提示用 /bf download <序号> 下载 */
+    private fun doSearch(player: Player, query: String) {
+        val manager = plugin.musicSearchManager ?: run {
+            plugin.sendConfigMsg(player, "messages.general.httpDisabled")
+            return
+        }
+        plugin.sendConfigMsg(player, "messages.bf.search.searching", "query", query)
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            val results = manager.search(query, 1)
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (results.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.search.noResult", "query", query)
+                    return@Runnable
+                }
+                // 存结果到插件（每个玩家最多保留最近一次搜索）
+                plugin.setPlayerSearchResults(player.uniqueId, results)
+                player.sendMessage("§6===== §e音乐搜索结果: §f$query §6=====")
+                results.take(10).forEach { r ->
+                    player.sendMessage("§7[${r.index}] §f${r.name} §7- §b${r.artist}")
+                }
+                player.sendMessage("§7使用 §e/bf download <序号> §7下载并添加到音乐库")
+            })
+        })
+    }
+
+    /** 按序号下载搜索结果（网易云解析 → MP3 → OGG → 放入音乐文件夹） */
+    private fun doDownload(player: Player, input: String) {
+        val manager = plugin.musicSearchManager ?: run {
+            plugin.sendConfigMsg(player, "messages.general.httpDisabled")
+            return
+        }
+        val index = input.toIntOrNull()
+        if (index == null) {
+            // 直接输入网易云歌曲 ID 解析
+            plugin.sendConfigMsg(player, "messages.bf.download.resolving", "id", input)
+            doDownloadById(player, input)
+            return
+        }
+        val results = plugin.getPlayerSearchResults(player.uniqueId)
+        val result = results.firstOrNull { it.index == index }
+        if (result == null) {
+            plugin.sendConfigMsg(player, "messages.bf.download.noSearch", "index", input)
+            return
+        }
+        plugin.sendConfigMsg(player, "messages.bf.download.resolving", "id", result.name)
+        doDownloadByUrl(player, result.name, result.url)
+    }
+
+    /** 按网易云歌曲 ID 解析下载 */
+    private fun doDownloadById(player: Player, songId: String) {
+        val manager = plugin.musicSearchManager ?: return
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            val info = manager.resolveNetease(songId, "standard")
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (info == null) {
+                    plugin.sendConfigMsg(player, "messages.bf.download.resolveFailed", "id", songId)
+                    return@Runnable
+                }
+                downloadAndAddToLibrary(player, info)
+            })
+        })
+    }
+
+    /** 按 URL 下载（搜索结果直接给 mp3 链接） */
+    private fun doDownloadByUrl(player: Player, name: String, url: String) {
+        val info = MusicSearchManager.DownloadInfo(name, "", null, url)
+        downloadAndAddToLibrary(player, info)
+    }
+
+    /** 下载 MP3 → 转 OGG → 存入音乐文件夹 → 自动扫描入列 */
+    private fun downloadAndAddToLibrary(player: Player, info: MusicSearchManager.DownloadInfo) {
+        // 先检查 ffmpeg 是否可用
+        if (!AudioConverter.isAvailable) {
+            plugin.sendConfigMsg(player, "messages.bf.download.noFfmpeg", "name", info.name)
+            return
+        }
+        plugin.sendConfigMsg(player, "messages.bf.download.downloading", "name", info.name)
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            val manager = plugin.musicSearchManager ?: return@Runnable
+            // 目标文件名：歌手 - 歌名.ogg
+            val safeName = (if (info.artist.isNotEmpty()) "${info.artist} - ${info.name}" else info.name)
+                .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            val musicFolder = plugin.getMusicFolder()
+            if (musicFolder == null) {
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable { plugin.sendConfigMsg(player, "messages.bf.download.failed", "name", info.name) })
+                return@Runnable
+            }
+            val targetOgg = java.io.File(musicFolder, "$safeName.ogg")
+            val ogg = manager.downloadAndConvertToOgg(info.url, targetOgg)
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (ogg != null) {
+                    plugin.rescanMusicFolder()
+                    plugin.sendConfigMsg(player, "messages.bf.download.success", "name", safeName)
+                    // 自动播放刚下载的歌
+                    val song = findFolderSong(safeName)
+                    if (song != null) {
+                        handlePlay(player, song.url, PlaybackContextType.SINGLE, null, song)
+                    }
+                } else {
+                    plugin.sendConfigMsg(player, "messages.bf.download.failed", "name", info.name)
+                }
+            })
+        })
+    }
+
     fun handlePlay(player: Player, url: String, contextType: PlaybackContextType, roomContext: MusicRoom?, presetContext: PresetSong?) {
         if (plugin.resourcePackGenerator == null || plugin.httpFileServer == null || !plugin.httpFileServer!!.isRunning) {
             plugin.sendConfigMsg(player, "messages.general.httpDisabled")
@@ -528,7 +659,7 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
             when {
                 args.size == 1 -> {
                     val input = args[0].lowercase()
-                    val subCommands = ArrayList(listOf("play", "random", "loop", "volume", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"))
+                    val subCommands = ArrayList(listOf("play", "search", "download", "random", "loop", "volume", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"))
                     if (sender is Player) {
                         subCommands.removeIf { cmd ->
                             var perm = "playermusic.$cmd"

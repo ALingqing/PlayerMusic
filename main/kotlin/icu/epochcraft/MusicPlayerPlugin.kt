@@ -38,6 +38,10 @@ class MusicPlayerPlugin : JavaPlugin() {
     var resourcePackGenerator: ResourcePackGenerator? = null
         private set
 
+    /** 音乐搜索/下载管理器 */
+    var musicSearchManager: MusicSearchManager? = null
+        private set
+
     /** 语言文件配置（从 lang-<lang>.yml 加载） */
     private var langConfig: FileConfiguration? = null
 
@@ -63,6 +67,9 @@ class MusicPlayerPlugin : JavaPlugin() {
     private val playerLoopStatus = ConcurrentHashMap<UUID, Boolean>()
     private val playerLoopingSound = ConcurrentHashMap<UUID, String>()
     private val playerLoopTasks = ConcurrentHashMap<UUID, BukkitTask>()
+
+    // 玩家最近一次音乐搜索结果（下载用）
+    private val playerSearchResults = ConcurrentHashMap<UUID, List<MusicSearchManager.SearchResult>>()
 
     private val activeMusicRooms = ConcurrentHashMap<String, MusicRoom>()
     private val presetSongsList = ArrayList<PresetSong>()
@@ -97,6 +104,7 @@ class MusicPlayerPlugin : JavaPlugin() {
         }
 
         musicCommands = MusicCommands(this)
+        musicSearchManager = MusicSearchManager(this)
         server.pluginManager.registerEvents(PlayerResourceListener(this, musicCommands!!), this)
         logger.info("事件监听器已注册。")
 
@@ -386,6 +394,24 @@ class MusicPlayerPlugin : JavaPlugin() {
 
     fun getSongsByAlbum(album: String?): List<PresetSong> {
         return presetSongsList.filter { it.album == album }
+    }
+
+    // ===================== 音乐搜索/下载支持 =====================
+
+    /** 音乐文件夹（下载的音乐存放处） */
+    fun getMusicFolder(): File? {
+        val folderPath = config.getString("musicFolder.path", "music") ?: "music"
+        val folder = File(dataFolder, folderPath)
+        if (!folder.exists()) folder.mkdirs()
+        return folder
+    }
+
+    fun setPlayerSearchResults(playerId: UUID, results: List<MusicSearchManager.SearchResult>) {
+        playerSearchResults[playerId] = results
+    }
+
+    fun getPlayerSearchResults(playerId: UUID): List<MusicSearchManager.SearchResult> {
+        return playerSearchResults[playerId] ?: emptyList()
     }
 
     private fun collectOggFiles(folder: File, result: MutableList<File>, recursive: Boolean) {
