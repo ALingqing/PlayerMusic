@@ -521,17 +521,12 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         downloadAndAddToLibrary(player, info)
     }
 
-    /** 下载 MP3 → 转 OGG → 存入音乐文件夹 → 自动扫描入列 */
+    /** 下载 MP3 → 存入音乐文件夹（播放时自动转 OGG）→ 重新扫描入列 */
     private fun downloadAndAddToLibrary(player: Player, info: MusicSearchManager.DownloadInfo) {
-        // 检查转换器可用（纯 Java 实现，恒可用，防御性检查）
-        if (!AudioConverter.isAvailable) {
-            plugin.sendConfigMsg(player, "messages.bf.download.convertFailed", "name", info.name)
-            return
-        }
         plugin.sendConfigMsg(player, "messages.bf.download.downloading", "name", info.name)
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
             val manager = plugin.musicSearchManager ?: return@Runnable
-            // 目标文件名：歌手 - 歌名.ogg
+            // 目标文件名：歌手 - 歌名.mp3
             val safeName = (if (info.artist.isNotEmpty()) "${info.artist} - ${info.name}" else info.name)
                 .replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val musicFolder = plugin.getMusicFolder()
@@ -539,17 +534,21 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                 org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable { plugin.sendConfigMsg(player, "messages.bf.download.failed", "name", info.name) })
                 return@Runnable
             }
-            val targetOgg = java.io.File(musicFolder, "$safeName.ogg")
-            val ogg = manager.downloadAndConvertToOgg(info.url, targetOgg)
+            val targetMp3 = java.io.File(musicFolder, "$safeName.mp3")
+            val ok = manager.downloadMp3(info.url, targetMp3)
             org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
-                if (ogg != null) {
-                    plugin.rescanMusicFolder()
+                if (ok) {
                     plugin.sendConfigMsg(player, "messages.bf.download.success", "name", safeName)
-                    // 自动播放刚下载的歌
-                    val song = findFolderSong(safeName)
-                    if (song != null) {
-                        handlePlay(player, song.url, PlaybackContextType.SINGLE, null, song)
-                    }
+                    // 异步转换 MP3 → OGG 缓存并重扫，完成后自动播放
+                    org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+                        plugin.convertMp3InFolderAndRescan(targetMp3)
+                        org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                            val song = findFolderSong(safeName)
+                            if (song != null) {
+                                handlePlay(player, song.url, PlaybackContextType.SINGLE, null, song)
+                            }
+                        })
+                    })
                 } else {
                     plugin.sendConfigMsg(player, "messages.bf.download.failed", "name", info.name)
                 }

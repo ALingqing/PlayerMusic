@@ -15,7 +15,7 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 
 ## 主要功能
 
-*   **文件夹音乐自动识别**: 将 `.ogg` 文件放入音乐文件夹，插件自动扫描识别为可播放歌曲，无需手动配置 URL。
+*   **文件夹音乐自动识别**: 将 `.ogg` 或 `.mp3` 文件放入音乐文件夹，插件自动扫描识别为可播放歌曲，无需手动配置 URL。MP3 会自动转换为 OGG 缓存后播放。
 *   **专辑分类 (子文件夹)**: 音乐文件夹中的子文件夹会作为专辑分类，在 GUI 中先显示专辑列表，点进专辑查看该专辑的歌曲。
 *   **动态资源包生成**:
     *   **独立模式**: 为每个播放请求动态生成一个包含单首音乐的资源包。
@@ -47,7 +47,7 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 *   MP3 解码：mp3spi（JLayer 封装，纯 Java）
 *   OGG 编码：jVorbisEnc（Xiph libvorbis 的 Java 移植，纯 Java）
 
-> 只播放本地 `music` 文件夹的 `.ogg` 文件当然也无需任何额外安装。
+> 播放本地 `music` 文件夹的 `.ogg` / `.mp3` 文件同样无需任何额外安装（MP3 首次播放前会自动转换为 OGG 缓存，缓存位于 `plugins/PlayerMusic/.converted/`）。
 
 ## 安装步骤
 
@@ -92,11 +92,11 @@ baseResourcePack:
   promptMessage: "§6加载音乐资源包..." # 发送合并后的音乐资源包给玩家时显示的提示信息
   originalPackPromptMessage: "§6恢复默认资源包..." # 当停止音乐并恢复到原始基础包时显示的提示信息
 
-# 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需手动配置 URL)
+# 音乐文件夹设置 (自动扫描文件夹内的 .ogg / .mp3 音乐文件，无需手动配置 URL)
 musicFolder:
   enabled: true # 是否启用文件夹音乐自动识别 (true/false)
   path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/PlayerMusic/music)
-  recursive: true # 是否递归扫描子文件夹中的 .ogg 文件 (true/false)
+  recursive: true # 是否递归扫描子文件夹中的 .ogg / .mp3 文件 (true/false)
   item: "MUSIC_DISC_CAT" # 文件夹音乐在GUI中显示的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
     - "§7自动识别的文件夹音乐"
@@ -115,7 +115,7 @@ musicFolder:
 
 ## 专辑分类 (子文件夹)
 
-把 `.ogg` 文件按子文件夹分组即可自动形成专辑分类，例如：
+把 `.ogg` / `.mp3` 文件按子文件夹分组即可自动形成专辑分类，例如：
 
 ```
 plugins/PlayerMusic/music/
@@ -184,9 +184,10 @@ plugins/PlayerMusic/music/
     *   确认 `config.yml` 中的 `httpServer.publicAddress` 设置正确（对于公网服务器，应为服务器的公网IP或域名）。
     *   确认 `httpServer.port` 已在服务器防火墙和路由器（如果适用）中开放。
 *   **音乐文件夹中的歌曲未识别**:
-    *   确认 `.ogg` 文件已放入 `plugins/PlayerMusic/music/` 目录（或 `musicFolder.path` 指定的目录）。
+    *   确认 `.ogg` / `.mp3` 文件已放入 `plugins/PlayerMusic/music/` 目录（或 `musicFolder.path` 指定的目录）。
     *   执行 `/bf rescan` 或 `/bf reload` 重新扫描音乐文件夹。
     *   检查 `config.yml` 中 `musicFolder.enabled` 是否为 `true`。
+    *   首次放入 MP3 时插件会异步转换为 OGG（缓存在 `.converted/`），转换完成后自动入列，可稍等片刻或再次 `/bf rescan`。
 
 ## 作者
 

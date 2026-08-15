@@ -49,6 +49,9 @@ class MusicPlayerPlugin : JavaPlugin() {
     private var logFileWriter: PrintWriter? = null
     private var logFileHandlerInstalled = false
 
+    /** 防止多个 MP3 异步转换任务重复触发重扫 */
+    private val mp3ConvertRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+
     data class PendingOnlineSound(
         val packFileName: String,
         val soundEventName: String,
@@ -361,10 +364,23 @@ class MusicPlayerPlugin : JavaPlugin() {
         oggFiles.sortBy { it.name }
 
         var added = 0
+        // 记录需要异步转换的 MP3（未缓存），转换完成后自动重扫
+        val pendingMp3 = ArrayList<File>()
         for (oggFile in oggFiles) {
-            val fileName = oggFile.name
-            val songName = fileName.substring(0, fileName.length - 4).replace('_', ' ')
-            val fileUri = oggFile.toURI().toString()
+            // MP3 文件：先转成 OGG 缓存到 .converted 目录，转换失败则跳过
+            var playableFile = oggFile
+            if (oggFile.name.lowercase().endsWith(".mp3")) {
+                val converted = getCachedOggForMp3(oggFile)
+                if (converted == null) {
+                    // 未缓存：本次跳过，加入异步转换队列
+                    pendingMp3.add(oggFile)
+                    continue
+                }
+                playableFile = converted
+            }
+            val fileName = playableFile.name
+            val songName = playableFile.name.substring(0, playableFile.name.length - 4).replace('_', ' ')
+            val fileUri = playableFile.toURI().toString()
             // 专辑名（子文件夹相对路径），根目录为 null
             val album: String?
             val parentDir = oggFile.parentFile
@@ -385,7 +401,61 @@ class MusicPlayerPlugin : JavaPlugin() {
             added++
             logPlayback("自动识别音乐文件: ${oggFile.absolutePath} -> 歌曲名: '$songName'" + (if (album != null) " (专辑: $album)" else ""))
         }
-        logPlayback("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首 .ogg 音乐文件。")
+        logPlayback("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首音乐文件。")
+
+        // 未缓存的 MP3：异步转换，完成后自动重扫（防重复触发）
+        if (pendingMp3.isNotEmpty() && mp3ConvertRunning.compareAndSet(false, true)) {
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
+                try {
+                    for (mp3 in pendingMp3) {
+                        convertMp3ToCachedOgg(mp3)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    mp3ConvertRunning.set(false)
+                }
+                // 回到主线程重扫，让新转换的 MP3 入列
+                org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
+                    try {
+                        val before = presetSongsList.size
+                        loadMusicFolderSongs(config)
+                        logPlayback("MP3 异步转换完成，新增 ${presetSongsList.size - before} 首音乐。")
+                    } catch (_: Exception) {
+                    }
+                })
+            })
+        }
+    }
+
+    /** 检查 MP3 是否已有有效的 OGG 缓存；有则返回，无则返回 null（需转换） */
+    private fun getCachedOggForMp3(mp3File: File): File? {
+        val convDir = File(dataFolder, ".converted")
+        val baseName = mp3File.name.substring(0, mp3File.name.length - 4)
+        val oggFile = File(convDir, "$baseName.ogg")
+        if (oggFile.exists() && oggFile.length() > 100 && oggFile.lastModified() >= mp3File.lastModified()) {
+            return oggFile
+        }
+        return null
+    }
+
+    /**
+     * 将 MP3 转换为 OGG 并缓存到 <dataFolder>/.converted/ 目录。
+     * @return 转换成功返回 OGG 文件；失败返回 null
+     */
+    fun convertMp3ToCachedOgg(mp3File: File): File? {
+        val convDir = File(dataFolder, ".converted")
+        if (!convDir.exists()) convDir.mkdirs()
+        // 用 MP3 文件最后修改时间做缓存键，MP3 更新后自动重新转换
+        val baseName = mp3File.name.substring(0, mp3File.name.length - 4)
+        val oggFile = File(convDir, "$baseName.ogg")
+        if (oggFile.exists() && oggFile.lastModified() >= mp3File.lastModified()) {
+            return oggFile // 缓存有效，直接复用
+        }
+        val converted = AudioConverter.convertMp3ToOgg(mp3File, oggFile)
+        if (converted != null) {
+            logPlayback("MP3 已转换为 OGG 缓存: ${mp3File.name} -> ${oggFile.name}")
+        }
+        return converted
     }
 
     fun getAlbums(): List<String> {
@@ -418,9 +488,14 @@ class MusicPlayerPlugin : JavaPlugin() {
         val files = folder.listFiles() ?: return
         for (file in files) {
             if (file.isDirectory) {
+                // 跳过 .converted 缓存目录
+                if (file.name == ".converted") continue
                 if (recursive) collectOggFiles(file, result, true)
-            } else if (file.name.lowercase().endsWith(".ogg")) {
-                result.add(file)
+            } else {
+                val lower = file.name.lowercase()
+                if (lower.endsWith(".ogg") || lower.endsWith(".mp3")) {
+                    result.add(file)
+                }
             }
         }
     }
@@ -429,6 +504,19 @@ class MusicPlayerPlugin : JavaPlugin() {
         val before = presetSongsList.size
         loadMusicFolderSongs(config)
         return presetSongsList.size - before
+    }
+
+    /**
+     * 下载 MP3 后调用：将指定的 MP3 转 OGG 缓存，再重扫。供 MusicCommands 异步调用。
+     */
+    fun convertMp3InFolderAndRescan(mp3File: File) {
+        try {
+            val ogg = convertMp3ToCachedOgg(mp3File)
+            if (ogg != null) {
+                loadMusicFolderSongs(config)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     // ===================== 访问器 =====================
