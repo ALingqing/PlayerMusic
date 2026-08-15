@@ -33,6 +33,7 @@ baseResourcePack:
 gui:
   prevPageItem: "ARROW" # 上一页按钮的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   nextPageItem: "ARROW" # 下一页按钮的物品材质
+  backItem: "BARRIER" # 专辑视图返回按钮的物品材质
 
 # 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
 musicFolder:

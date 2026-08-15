@@ -159,19 +159,11 @@ public class PlayerResourceListener implements Listener {
             return;
         }
 
-        List<PresetSong> presetSongs = plugin.getPresetSongs();
-        int totalPages = (int) Math.ceil((double) presetSongs.size() / (double) MusicGUI.ITEMS_PER_PAGE);
-        if (totalPages == 0) totalPages = 1;
-
-        String guiTitleFromConfig = plugin.getLangMessage("gui.title");
-        if (guiTitleFromConfig == null) guiTitleFromConfig = "§9音乐播放器";
-        String expectedTitleString = guiTitleFromConfig;
-        if (totalPages > 1) {
-            expectedTitleString += " §7(第 " + (currentGui.getCurrentPage() + 1) + "/" + totalPages + " 页)";
-        }
-        String coloredExpectedTitle = ChatColor.translateAlternateColorCodes('&', expectedTitleString);
-
-        if (!view.getTitle().equals(coloredExpectedTitle)) {
+        // 通过 GUI 状态 + 标题前缀确认是 PlayerMusic 的 GUI，避免误拦截其他插件容器
+        String guiTitleBase = plugin.getLangMessage("gui.title");
+        if (guiTitleBase == null) guiTitleBase = "§9音乐播放器";
+        String coloredBase = ChatColor.translateAlternateColorCodes('&', guiTitleBase);
+        if (!view.getTitle().startsWith(coloredBase)) {
             return;
         }
 
@@ -184,25 +176,58 @@ public class PlayerResourceListener implements Listener {
         String itemName = meta.getDisplayName();
         String nextPageNameRaw = plugin.getLangMessage("gui.nextPageName");
         String prevPageNameRaw = plugin.getLangMessage("gui.prevPageName");
+        String backRaw = plugin.getLangMessage("gui.backToAlbums");
+        String allRaw = plugin.getLangMessage("gui.allMusic");
         String nextPageName = ChatColor.translateAlternateColorCodes('&', nextPageNameRaw != null ? nextPageNameRaw : "§a下一页 ->");
         String prevPageName = ChatColor.translateAlternateColorCodes('&', prevPageNameRaw != null ? prevPageNameRaw : "§c<- 上一页");
+        String backName = ChatColor.translateAlternateColorCodes('&', backRaw != null ? backRaw : "§c<- 返回专辑");
+        String allName = ChatColor.translateAlternateColorCodes('&', allRaw != null ? allRaw : "§a全部音乐");
 
         if (itemName.equals(nextPageName)) {
             currentGui.changePage(player, 1);
+            return;
         } else if (itemName.equals(prevPageName)) {
             currentGui.changePage(player, -1);
-        } else {
-            PresetSong selectedSong = plugin.getPresetSongs().stream()
-                    .filter(song -> {
-                        String songDisplayItemName = ChatColor.translateAlternateColorCodes('&', song.getName());
-                        return songDisplayItemName.equals(itemName);
-                    })
-                    .findFirst().orElse(null);
+            return;
+        }
 
-            if (selectedSong != null) {
-                player.closeInventory();
-                musicCommands.handlePlay(player, selectedSong.getUrl(), MusicCommands.PlaybackContextType.SINGLE, null, selectedSong);
+        // 专辑列表视图：处理"全部音乐"和专辑点击
+        if (currentGui.isAlbumListView()) {
+            if (itemName.equals(allName)) {
+                currentGui.openAllMusic(player);
+                return;
             }
+            // 专辑项格式："♪ <专辑名>"
+            if (itemName.startsWith("§e♪ ")) {
+                String albumName = ChatColor.stripColor(itemName.substring(4));
+                if (plugin.getAlbums().contains(albumName)) {
+                    currentGui.openAlbum(player, albumName);
+                    return;
+                }
+            }
+            return;
+        }
+
+        // 歌曲视图：处理"返回专辑"
+        if (itemName.equals(backName)) {
+            currentGui.backToAlbums(player);
+            return;
+        }
+
+        // 歌曲点击播放
+        List<PresetSong> songList = currentGui.getCurrentAlbum() == null
+                ? plugin.getPresetSongs()
+                : plugin.getSongsByAlbum(currentGui.getCurrentAlbum());
+        PresetSong selectedSong = songList.stream()
+                .filter(song -> {
+                    String songDisplayItemName = ChatColor.translateAlternateColorCodes('&', song.getName());
+                    return songDisplayItemName.equals(itemName);
+                })
+                .findFirst().orElse(null);
+
+        if (selectedSong != null) {
+            player.closeInventory();
+            musicCommands.handlePlay(player, selectedSong.getUrl(), MusicCommands.PlaybackContextType.SINGLE, null, selectedSong);
         }
     }
 

@@ -306,14 +306,47 @@ public class MusicPlayerPlugin extends JavaPlugin {
             String fileName = oggFile.getName();
             String songName = fileName.substring(0, fileName.length() - 4).replace('_', ' ');
             String fileUri = oggFile.toURI().toString();
+            // 计算专辑名（子文件夹相对路径），根目录歌曲 album 为 null
+            final String album;
+            File parentDir = oggFile.getParentFile();
+            if (parentDir != null && !parentDir.equals(musicFolder)) {
+                String rawAlbum = musicFolder.toURI().relativize(parentDir.toURI()).getPath();
+                // 去掉末尾斜杠，并统一用 / 分隔
+                while (rawAlbum.endsWith("/") || rawAlbum.endsWith("\\")) {
+                    rawAlbum = rawAlbum.substring(0, rawAlbum.length() - 1);
+                }
+                album = rawAlbum;
+            } else {
+                album = null;
+            }
+            final String albumLabel = album != null ? album : "默认";
             List<String> songLore = lore.stream()
-                    .map(line -> line.replace("<name>", fileName).replace("<url>", fileUri))
+                    .map(line -> line.replace("<name>", fileName)
+                            .replace("<url>", fileUri)
+                            .replace("<album>", albumLabel))
                     .collect(Collectors.toList());
-            presetSongsList.add(new PresetSong(songName, fileUri, material, songLore));
+            presetSongsList.add(new PresetSong(songName, fileUri, material, songLore, album));
             added++;
-            getLogger().info("自动识别音乐文件: " + oggFile.getAbsolutePath() + " -> 歌曲名: '" + songName + "'");
+            getLogger().info("自动识别音乐文件: " + oggFile.getAbsolutePath() + " -> 歌曲名: '" + songName + "'" + (album != null ? " (专辑: " + album + ")" : ""));
         }
         getLogger().info("已从音乐文件夹 (" + musicFolder.getAbsolutePath() + ") 自动识别 " + added + " 首 .ogg 音乐文件。");
+    }
+
+    /** 获取所有专辑名（子文件夹名），根目录歌曲归属为 null 时用 "默认" 表示。返回有序列表 */
+    public List<String> getAlbums() {
+        return presetSongsList.stream()
+                .map(PresetSong::getAlbum)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    /** 获取指定专辑下的歌曲。album 为 null 表示根目录歌曲 */
+    public List<PresetSong> getSongsByAlbum(@Nullable String album) {
+        return presetSongsList.stream()
+                .filter(song -> Objects.equals(song.getAlbum(), album))
+                .collect(Collectors.toList());
     }
 
     private void collectOggFiles(File folder, List<File> result, boolean recursive) {

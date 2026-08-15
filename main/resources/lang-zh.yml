@@ -86,3 +86,5 @@ gui:
   noPresets: "§c没有可用的音乐。"
   prevPageName: "§c<- 上一页"
   nextPageName: "§a下一页 ->"
+  allMusic: "§a全部音乐"
+  backToAlbums: "§c<- 返回专辑"
