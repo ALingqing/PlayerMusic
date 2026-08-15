@@ -85,10 +85,18 @@ public class ResourcePackGenerator {
     private DownloadedAudioInfo downloadAudioFile(String audioUrl, String uniqueSuffix, String modeIdentifier) {
         File tempAudioFile = new File(tempPackStorageDir, "audio_" + modeIdentifier + "_" + uniqueSuffix + ".ogg");
 
-        // 支持 file:// 协议：直接读取本地文件，无需网络下载
-        if (audioUrl != null && audioUrl.startsWith("file://")) {
+        URL audioSourceUrl;
+        try {
+            audioSourceUrl = new URL(audioUrl);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "无效的音频 URL: " + audioUrl + " (" + modeIdentifier + " 模式): " + e.getMessage());
+            return new DownloadedAudioInfo(tempAudioFile, "messages.general.downloadException");
+        }
+
+        // 支持 file 协议（如 file:/... 或 file:///...）：直接读取本地文件，无需网络下载
+        if ("file".equalsIgnoreCase(audioSourceUrl.getProtocol())) {
             try {
-                File localFile = new File(new URL(audioUrl).toURI());
+                File localFile = new File(audioSourceUrl.toURI());
                 if (!localFile.exists() || !localFile.isFile()) {
                     plugin.getLogger().warning("本地音频文件不存在: " + audioUrl + " (" + modeIdentifier + " 模式)");
                     return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
@@ -105,8 +113,14 @@ public class ResourcePackGenerator {
             }
         }
 
+        // 仅支持 http/https 网络下载；其他协议拒绝，避免 ClassCastException
+        String protocol = audioSourceUrl.getProtocol();
+        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
+            plugin.getLogger().warning("不支持的音频 URL 协议: " + protocol + " (" + audioUrl + "), 仅支持 http/https/file");
+            return new DownloadedAudioInfo(tempAudioFile, "messages.general.downloadException");
+        }
+
         try {
-            URL audioSourceUrl = new URL(audioUrl);
             HttpURLConnection connection = (HttpURLConnection) audioSourceUrl.openConnection();
             connection.setRequestProperty("User-Agent", "EogdMusicPlayer/" + plugin.getDescription().getVersion());
             connection.setInstanceFollowRedirects(true);
