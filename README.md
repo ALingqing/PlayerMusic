@@ -34,31 +34,20 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 
 *   **Minecraft 服务器**: Paper 26.2 (Minecraft 26.2) 或兼容的服务端。
 *   **Java**: Java 25 或更高版本 (Minecraft 26.2 要求 Java SE 25)。
-*   **ffmpeg**（可选）：仅 `/bf search`、`/bf download` 下载并自动转 OGG 时需要。只播放本地 `music` 文件夹 `.ogg` 文件则不需要。
 *   **依赖**:
     *   Gson (用于 JSON 处理)
     *   Apache Commons Codec (用于 SHA-1 哈希计算)
+    *   mp3spi + tritonus (纯 Java MP3 解码)
+    *   jVorbisEnc (纯 Java Vorbis 编码)
 
-## 安装 ffmpeg (音乐搜索/下载需要)
+## 音乐搜索/下载（纯 Java 转换，无需 ffmpeg）
 
-插件检测**系统 PATH** 中的 `ffmpeg`（Windows 为 `ffmpeg.exe`）。
+插件内置 **纯 Java 音频转换**，`/bf search`、`/bf download` 下载 MP3 后自动转为 OGG，**无需安装任何外部程序**（无需 ffmpeg），跨平台（Linux/Windows 均可用）。
 
-**Debian / Ubuntu（含多数 Pterodactyl 容器，需 root/sudo）：**
-```bash
-apt-get update && apt-get install -y ffmpeg && ffmpeg -version
-```
+*   MP3 解码：mp3spi（JLayer 封装，纯 Java）
+*   OGG 编码：jVorbisEnc（Xiph libvorbis 的 Java 移植，纯 Java）
 
-**CentOS / RHEL：**
-```bash
-yum install -y ffmpeg   # 或 dnf install -y ffmpeg
-```
-
-**Windows 服务器：**
-下载 [ffmpeg Windows 构建](https://www.gyan.dev/ffmpeg/builds/) 并解压，将 `bin` 目录加入系统 PATH。
-
-安装后执行 `ffmpeg -version` 确认可用，然后**重启服务器**。
-
-> **提示**：ffmpeg 是插件下载音乐时把 MP3 转成 OGG 用。如果只播放自己放进 `music` 文件夹的 `.ogg` 文件，无需安装 ffmpeg。
+> 只播放本地 `music` 文件夹的 `.ogg` 文件当然也无需任何额外安装。
 
 ## 安装步骤
 

@@ -523,9 +523,9 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
 
     /** 下载 MP3 → 转 OGG → 存入音乐文件夹 → 自动扫描入列 */
     private fun downloadAndAddToLibrary(player: Player, info: MusicSearchManager.DownloadInfo) {
-        // 先检查 ffmpeg 是否可用
+        // 检查转换器可用（纯 Java 实现，恒可用，防御性检查）
         if (!AudioConverter.isAvailable) {
-            plugin.sendConfigMsg(player, "messages.bf.download.noFfmpeg", "name", info.name)
+            plugin.sendConfigMsg(player, "messages.bf.download.convertFailed", "name", info.name)
             return
         }
         plugin.sendConfigMsg(player, "messages.bf.download.downloading", "name", info.name)
