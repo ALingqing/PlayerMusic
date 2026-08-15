@@ -15,8 +15,8 @@ httpServer:
 
 # 资源包相关设置
 resourcePack:
-  packFormat: 34 # 资源包格式版本。Minecraft 1.21.x 对应 34。请根据你的服务器版本调整。
-  # 1.20.5-1.20.6 -> 32, 1.20.3-1.20.4 -> 26, 1.20.2 -> 18, 1.20-1.20.1 -> 15
+  packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
+  # 26.1 -> 84, 26.2 -> 88, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
   description: "§bEogdMusicPlayer §7音乐资源包" # 资源包的描述文本
   enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
   # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
@@ -36,6 +36,16 @@ gui:
   nextPageName: "§a下一页 ->" # 下一页按钮的名称
   prevPageItem: "ARROW" # 上一页按钮的物品材质 (区分大小写, 参考 Spigot Material 枚举)
   nextPageItem: "ARROW" # 下一页按钮的物品材质
+
+# 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
+musicFolder:
+  enabled: true # 是否启用文件夹音乐自动识别 (true/false)
+  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/EogdMusicPlayer/music)
+  recursive: true # 是否递归扫描子文件夹中的 .ogg 文件 (true/false)
+  item: "MUSIC_DISC_CAT" # 文件夹音乐在GUI中显示的物品材质 (区分大小写, 参考 Spigot Material 枚举)
+  lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
+    - "§7自动识别的文件夹音乐"
+    - "§7文件: <name>"
 
 # 预设歌曲列表
 # 每首歌曲是一个独立的配置节 (例如 'song1', 'song2')
@@ -79,11 +89,12 @@ messages:
     downloadFailedResponse: "§c下载音频文件失败，服务器响应无效。URL: <url>"
     fileTooLarge: "§c音频文件过大 (<size>MB)，无法下载。URL: <url>" # <size> 会被替换
     downloadException: "§c下载音频文件时发生网络错误。URL: <url>"
+    localFileNotFound: "§c本地音乐文件不存在或无法访问。文件: <url>"
 
   bf: # /bf 命令相关消息
     usage: |-
       §e用法: /bf <子命令> [参数...]
-      §7可用子命令: play, playurl, stop, gui, createroom, join, start, roomplay, disbandroom, reload, info
+      §7可用子命令: play, playurl, stop, gui, createroom, join, start, roomplay, disbandroom, reload, rescan, info
     unknownCommand: "§c未知子命令。输入 /bf 获取帮助。"
     play:
       usage: "§e用法: /bf play <歌曲名称或编号>"
@@ -129,6 +140,8 @@ messages:
       notifyMemberRoomDisbanded: "§e你所在的音乐室 '<room_description>§e' 已被房主解散。"
     reload:
       success: "§aEogdMusicPlayer 配置已重载。"
+    rescan:
+      success: "§a已重新扫描音乐文件夹，新识别 <count> 首歌曲。"
     info: {} # /bf info 使用硬编码格式
 
   playurl: # /playurl 命令相关消息 (如果与 /bf playurl 不同)

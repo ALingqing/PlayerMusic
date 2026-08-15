@@ -1,0 +1,44 @@
+name: Build EogdMusicPlayer
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许创建 Release / 上传产物
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: 使用 Maven 构建
+        run: mvn -B clean package
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: EogdMusicPlayer-jar
+          path: target/EogdMusicPlayer-*.jar
+          if-no-files-found: error
+
+      # 仅当推送了 tag (如 v1.1.71) 时创建 GitHub Release
+      - name: 创建 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/EogdMusicPlayer-*.jar
+          generate_release_notes: true

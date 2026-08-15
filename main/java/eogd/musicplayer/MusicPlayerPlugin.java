@@ -3,6 +3,8 @@ package eogd.musicplayer;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.digest.DigestUtils;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -19,6 +21,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
@@ -36,6 +39,9 @@ public class MusicPlayerPlugin extends JavaPlugin {
     private final Map<UUID, PendingOnlineSound> pendingSingleUserSounds = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerPendingPackType = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerCurrentMusicPackFile = new ConcurrentHashMap<>();
+
+    /** 记录每个玩家最近一次发送的音乐资源包请求 ID，用于在 PlayerResourcePackStatusEvent 中精确匹配 */
+    private final Map<UUID, UUID> playerPackRequestIds = new ConcurrentHashMap<>();
 
     private final Map<String, MusicRoom> activeMusicRooms = new ConcurrentHashMap<>();
     private final List<PresetSong> presetSongsList = new ArrayList<>();
@@ -189,7 +195,83 @@ public class MusicPlayerPlugin extends JavaPlugin {
                 }
             }
         }
+        loadMusicFolderSongs(config);
         getLogger().info("已加载 " + presetSongsList.size() + " 首预设歌曲。");
+    }
+
+    /**
+     * 自动扫描音乐文件夹中的 .ogg 文件并将其作为预设歌曲加入播放列表，
+     * 无需在 config.yml 中手动配置 URL。
+     */
+    private void loadMusicFolderSongs(FileConfiguration config) {
+        // 先移除之前从文件夹加载的本地歌曲，避免重复添加（重载/重新扫描时安全）
+        presetSongsList.removeIf(song -> song.getUrl() != null && song.getUrl().startsWith("file://"));
+
+        if (!config.getBoolean("musicFolder.enabled", true)) {
+            return;
+        }
+        String folderPath = config.getString("musicFolder.path", "music");
+        boolean recursive = config.getBoolean("musicFolder.recursive", true);
+        String itemMaterialName = config.getString("musicFolder.item", "MUSIC_DISC_CAT").toUpperCase();
+        Material material = Material.getMaterial(itemMaterialName);
+        if (material == null) {
+            getLogger().warning("musicFolder.item '" + itemMaterialName + "' 无效。将使用默认的 MUSIC_DISC_CAT。");
+            material = Material.MUSIC_DISC_CAT;
+        }
+        List<String> lore = config.getStringList("musicFolder.lore");
+
+        File musicFolder = new File(getDataFolder(), folderPath);
+        if (!musicFolder.exists()) {
+            if (musicFolder.mkdirs()) {
+                getLogger().info("音乐文件夹不存在，已自动创建: " + musicFolder.getAbsolutePath());
+            } else {
+                getLogger().warning("无法创建音乐文件夹: " + musicFolder.getAbsolutePath());
+            }
+            return;
+        }
+        if (!musicFolder.isDirectory()) {
+            getLogger().warning("musicFolder.path 指向的不是文件夹: " + musicFolder.getAbsolutePath());
+            return;
+        }
+
+        List<File> oggFiles = new ArrayList<>();
+        collectOggFiles(musicFolder, oggFiles, recursive);
+        oggFiles.sort(Comparator.comparing(File::getName));
+
+        int added = 0;
+        for (File oggFile : oggFiles) {
+            String fileName = oggFile.getName();
+            String songName = fileName.substring(0, fileName.length() - 4).replace('_', ' ');
+            String fileUri = oggFile.toURI().toString();
+            List<String> songLore = lore.stream()
+                    .map(line -> line.replace("<name>", fileName).replace("<url>", fileUri))
+                    .collect(Collectors.toList());
+            presetSongsList.add(new PresetSong(songName, fileUri, material, songLore));
+            added++;
+            getLogger().info("自动识别音乐文件: " + oggFile.getAbsolutePath() + " -> 歌曲名: '" + songName + "'");
+        }
+        getLogger().info("已从音乐文件夹 (" + musicFolder.getAbsolutePath() + ") 自动识别 " + added + " 首 .ogg 音乐文件。");
+    }
+
+    private void collectOggFiles(File folder, List<File> result, boolean recursive) {
+        File[] files = folder.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                if (recursive) {
+                    collectOggFiles(file, result, true);
+                }
+            } else if (file.getName().toLowerCase().endsWith(".ogg")) {
+                result.add(file);
+            }
+        }
+    }
+
+    /** 重新扫描音乐文件夹（/bf rescan），供命令调用。返回本次新识别的歌曲数量。 */
+    public int rescanMusicFolder() {
+        int before = presetSongsList.size();
+        loadMusicFolderSongs(getConfig());
+        return presetSongsList.size() - before;
     }
 
     private void initializePresetPrewarming() {
@@ -260,6 +342,7 @@ public class MusicPlayerPlugin extends JavaPlugin {
         });
         playerCurrentMusicPackFile.clear();
         playerPendingPackType.clear();
+        playerPackRequestIds.clear();
 
         getLogger().info(getName() + " 已被禁用。");
     }
@@ -483,12 +566,36 @@ public class MusicPlayerPlugin extends JavaPlugin {
         String packUrl = httpFileServer.getFileUrl(getConfig().getString("httpServer.publicAddress"), getConfig().getInt("httpServer.port"), basePackFileNameConfig);
         try {
             byte[] sha1Bytes = Hex.decodeHex(basePackSha1);
-            player.setResourcePack(packUrl, sha1Bytes, getOriginalPackPromptMessage(), true);
+            UUID packId = UUID.nameUUIDFromBytes(("eogdmusicplayer-base-" + basePackFileNameConfig).getBytes(StandardCharsets.UTF_8));
+            setPlayerPackRequestId(player.getUniqueId(), packId);
+            player.setResourcePack(packId, packUrl, sha1Bytes, legacyToComponent(getOriginalPackPromptMessage()), true);
             getLogger().info("正在向玩家 " + player.getName() + " 发送原始基础资源包: " + packUrl);
         } catch (DecoderException e) {
             getLogger().log(Level.SEVERE, "无法解码原始基础资源包的SHA-1哈希值: " + basePackSha1, e);
             sendConfigMsg(player, "messages.general.basePackReapplyFailed");
         }
+    }
+
+    /** 记录玩家最近一次音乐资源包请求的 UUID */
+    public void setPlayerPackRequestId(UUID playerId, UUID packRequestId) {
+        playerPackRequestIds.put(playerId, packRequestId);
+    }
+
+    /** 获取玩家最近一次音乐资源包请求的 UUID，若无则返回 null */
+    @Nullable
+    public UUID getPlayerPackRequestId(UUID playerId) {
+        return playerPackRequestIds.get(playerId);
+    }
+
+    /** 清除玩家音乐资源包请求 ID 记录 */
+    public void clearPlayerPackRequestId(UUID playerId) {
+        playerPackRequestIds.remove(playerId);
+    }
+
+    /** 将旧的 & 颜色代码字符串转换为 Adventure Component */
+    public Component legacyToComponent(String legacyText) {
+        if (legacyText == null) return Component.empty();
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(legacyText);
     }
 
     private boolean compareFileSha1(File file, String expectedSha1) {

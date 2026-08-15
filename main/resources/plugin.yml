@@ -1,14 +1,14 @@
 name: EogdMusicPlayer
 version: ${project.version}
 main: eogd.musicplayer.MusicPlayerPlugin
-api-version: '1.21'
+api-version: '26.2'
 author: Eogd
 description: ${project.description}
 
 commands:
   bf:
     description: 主音乐播放器命令。
-    usage: "/bf <play|playurl|stop|gui|createroom|join|start|roomplay|disbandroom|reload|info>" # 新增 info
+    usage: "/bf <play|playurl|stop|gui|createroom|join|start|roomplay|disbandroom|reload|rescan|info>" # 新增 info
     aliases: [music, eogdmusic]
   playurl:
     description: 快速播放指定URL的音乐 (仅自己听)。

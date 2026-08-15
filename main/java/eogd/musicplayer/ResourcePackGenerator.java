@@ -84,6 +84,27 @@ public class ResourcePackGenerator {
 
     private DownloadedAudioInfo downloadAudioFile(String audioUrl, String uniqueSuffix, String modeIdentifier) {
         File tempAudioFile = new File(tempPackStorageDir, "audio_" + modeIdentifier + "_" + uniqueSuffix + ".ogg");
+
+        // 支持 file:// 协议：直接读取本地文件，无需网络下载
+        if (audioUrl != null && audioUrl.startsWith("file://")) {
+            try {
+                File localFile = new File(new URL(audioUrl).toURI());
+                if (!localFile.exists() || !localFile.isFile()) {
+                    plugin.getLogger().warning("本地音频文件不存在: " + audioUrl + " (" + modeIdentifier + " 模式)");
+                    return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
+                }
+                if (maxDownloadSizeBytes > 0 && localFile.length() > maxDownloadSizeBytes) {
+                    plugin.getLogger().warning("本地音频文件 " + audioUrl + " 过大 (" + modeIdentifier + " 模式): " + localFile.length() + " bytes (max: " + maxDownloadSizeBytes + ")");
+                    return new DownloadedAudioInfo(tempAudioFile, "messages.general.fileTooLarge");
+                }
+                Files.copy(localFile.toPath(), tempAudioFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                return new DownloadedAudioInfo(tempAudioFile, null);
+            } catch (Exception e) {
+                plugin.getLogger().log(Level.WARNING, "读取本地音频文件 " + audioUrl + " 时出错 (" + modeIdentifier + " 模式): " + e.getMessage());
+                return new DownloadedAudioInfo(tempAudioFile, "messages.general.localFileNotFound");
+            }
+        }
+
         try {
             URL audioSourceUrl = new URL(audioUrl);
             HttpURLConnection connection = (HttpURLConnection) audioSourceUrl.openConnection();

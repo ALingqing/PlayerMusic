@@ -16,6 +16,7 @@ EogdMusicPlayer 是一款功能丰富的 Spigot 插件，允许服务器管理�
 ## 主要功能
 
 *   **URL 音乐播放**: 直接通过 URL 播放 .ogg 格式的音乐。
+*   **文件夹音乐自动识别**: 将 `.ogg` 文件放入音乐文件夹，插件自动扫描识别为可播放歌曲，无需手动配置 URL。
 *   **预设歌曲列表**: 在配置文件中预设常用歌曲，方便快速播放。
 *   **动态资源包生成**:
     *   **独立模式**: 为每个播放请求动态生成一个包含单首音乐的资源包。
@@ -33,8 +34,8 @@ EogdMusicPlayer 是一款功能丰富的 Spigot 插件，允许服务器管理�
 
 ## 要求与依赖
 
-*   **Minecraft 服务器**: Spigot 1.21 或兼容的 PaperMC 等服务端。
-*   **Java**: Java 17 或更高版本。
+*   **Minecraft 服务器**: Paper 26.2 (Minecraft 26.2) 或兼容的服务端。
+*   **Java**: Java 25 或更高版本 (Minecraft 26.2 要求 Java SE 25)。
 *   **依赖**:
     *   Gson (用于 JSON 处理)
     *   Apache Commons Codec (用于 SHA-1 哈希计算)
@@ -68,8 +69,8 @@ httpServer:
 
 # 资源包相关设置
 resourcePack:
-  packFormat: 34 # 资源包格式版本。Minecraft 1.21.x 对应 34。请根据你的服务器版本调整。
-                 # 1.20.5-1.20.6 -> 32, 1.20.3-1.20.4 -> 26, 1.20.2 -> 18, 1.20-1.20.1 -> 15
+  packFormat: 88 # 资源包格式版本。Minecraft 26.2 (Paper 26.2) 对应 88。请根据你的服务器版本调整。
+                # 26.1 -> 84, 1.21.11 -> 70, 1.21.5 -> 55, 1.21 -> 34, 1.20.5-1.20.6 -> 32
   description: "§bEogdMusicPlayer §7音乐资源包" # 资源包的描述文本
   enablePresetPrewarming: false # 是否在插件启动/重载时为预设歌曲提前生成资源包 (true/false)
                                # 开启后，预设歌曲加载更快，但会占用少量启动时间和磁盘空间。
@@ -80,6 +81,16 @@ baseResourcePack:
   fileName: "base_pack.zip" # 基础资源包的文件名，应放置在插件的数据文件夹内。
   promptMessage: "§6加载音乐资源包..." # 发送合并后的音乐资源包给玩家时显示的提示信息
   originalPackPromptMessage: "§6恢复默认资源包..." # 当停止音乐并恢复到原始基础包时显示的提示信息
+
+# 音乐文件夹设置 (自动扫描文件夹内的 .ogg 音乐文件，无需在预设列表手动配置 URL)
+musicFolder:
+  enabled: true # 是否启用文件夹音乐自动识别 (true/false)
+  path: "music" # 音乐文件夹路径，相对于插件数据文件夹 (plugins/EogdMusicPlayer/music)
+  recursive: true # 是否递归扫描子文件夹中的 .ogg 文件 (true/false)
+  item: "MUSIC_DISC_CAT" # 文件夹音乐在GUI中显示的物品材质 (区分大小写, 参考 Spigot Material 枚举)
+  lore: # 文件夹音乐物品的描述文本列表 (支持颜色代码 '&'，<name> 会被替换为文件名，<url> 会被替换为本地文件地址)
+    - "§7自动识别的文件夹音乐"
+    - "§7文件: <name>"
 
 # GUI 相关设置
 gui:
@@ -201,7 +212,7 @@ messages:
 ```
 
 **重要**:
-*   `resourcePack.packFormat`: 这个值非常重要，必须与你的服务器客户端版本兼容。请查阅 Minecraft Wiki 获取最新的资源包版本信息 (例如，1.21.x 通常是 34)。
+*   `resourcePack.packFormat`: 这个值非常重要，必须与你的服务器客户端版本兼容。请查阅 Minecraft Wiki 获取最新的资源包版本信息 (例如，Paper 26.2 / Minecraft 26.2 通常是 88)。
 *   `httpServer.publicAddress`: 如果服务器在NAT网络后（例如家庭网络），留空或使用 `auto` 可能无法正确检测到公网IP。你需要手动配置为你的公网IP或域名，否则玩家可能无法下载资源包。确保配置的 `httpServer.port` 在防火墙和路由器上是开放的。
 *   `baseResourcePack.enableMerging`: 如果设置为 `true`，你必须在 `plugins/EogdMusicPlayer/` 目录下放置一个名为 `baseResourcePack.fileName` 指定的有效基础资源包文件。
 *   `resourcePack.enablePresetPrewarming`: 设置为 `true` 以在插件启动时为预设歌曲生成资源包，加快后续播放速度。

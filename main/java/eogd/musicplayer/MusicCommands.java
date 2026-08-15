@@ -14,6 +14,7 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -366,6 +367,12 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                     plugin.sendConfigMsg(sender, "messages.bf.reload.success");
                     return true;
 
+                case "rescan":
+                    if (!canExecute(sender, "eogdmusicplayer.reload", false)) return true;
+                    int addedSongs = plugin.rescanMusicFolder();
+                    plugin.sendConfigMsg(sender, "messages.bf.rescan.success", "count", String.valueOf(addedSongs));
+                    return true;
+
                 case "info":
                     if (!canExecute(sender, "eogdmusicplayer.info", false)) return true;
                     PluginDescriptionFile pdf = plugin.getDescription();
@@ -497,7 +504,9 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
                                 if (plugin.shouldUseMergedPackLogic()) plugin.sendOriginalBasePackToPlayer(player);
                                 return;
                             }
-                            player.setResourcePack(packInfo.packUrl(), sha1Bytes, promptMessage, true);
+                            UUID packId = UUID.nameUUIDFromBytes(("eogdmusicplayer-" + soundEventName).getBytes(StandardCharsets.UTF_8));
+                            plugin.setPlayerPackRequestId(player.getUniqueId(), packId);
+                            player.setResourcePack(packId, packInfo.packUrl(), sha1Bytes, plugin.legacyToComponent(promptMessage), true);
 
                             if (contextType == PlaybackContextType.ROOM && roomContext != null) {
                                 plugin.markPlayerPendingRoomPack(player.getUniqueId(), roomContext.getRoomId(), packInfo.packFileName());
@@ -525,7 +534,7 @@ public class MusicCommands implements CommandExecutor, TabCompleter {
         if (command.getName().equalsIgnoreCase("bf")) {
             if (args.length == 1) {
                 String input = args[0].toLowerCase();
-                List<String> subCommands = new ArrayList<>(List.of("play", "stop", "gui", "playurl", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "info"));
+                List<String> subCommands = new ArrayList<>(List.of("play", "stop", "gui", "playurl", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"));
                 if (sender instanceof Player p) {
                     subCommands.removeIf(cmd -> {
                         String perm = "eogdmusicplayer." + cmd;

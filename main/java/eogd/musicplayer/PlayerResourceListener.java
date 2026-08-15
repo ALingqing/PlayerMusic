@@ -15,6 +15,7 @@ import org.bukkit.ChatColor;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 public class PlayerResourceListener implements Listener {
 
@@ -30,6 +31,22 @@ public class PlayerResourceListener implements Listener {
     public void onResourcePackStatus(PlayerResourcePackStatusEvent event) {
         Player player = event.getPlayer();
         PlayerResourcePackStatusEvent.Status status = event.getStatus();
+
+        // Paper 26.2：资源包事件携带唯一 ID。仅处理本插件最近一次发出的音乐资源包请求，
+        // 忽略服务器其他资源包/过期请求，避免事件串扰。
+        UUID expectedPackId = plugin.getPlayerPackRequestId(player.getUniqueId());
+        if (expectedPackId == null) {
+            return;
+        }
+        try {
+            UUID eventPackId = event.getID();
+            if (!expectedPackId.equals(eventPackId)) {
+                return;
+            }
+        } catch (Throwable ignored) {
+            // 极老版本 API 无 getID() 时的兼容兜底：不拦截
+        }
+
         String pendingPackFullIdentifier = plugin.getPlayerPendingPackType(player.getUniqueId());
 
         if (pendingPackFullIdentifier == null) {
@@ -99,6 +116,7 @@ public class PlayerResourceListener implements Listener {
                     }
                 }
                 plugin.clearPlayerPendingPackType(player.getUniqueId());
+                plugin.clearPlayerPackRequestId(player.getUniqueId());
                 break;
             case DECLINED:
             case FAILED_DOWNLOAD:
@@ -120,6 +138,7 @@ public class PlayerResourceListener implements Listener {
                 }
                 plugin.clearPlayerPendingPackType(player.getUniqueId());
                 plugin.clearPlayerCurrentMusicPack(player.getUniqueId());
+                plugin.clearPlayerPackRequestId(player.getUniqueId());
                 if (plugin.shouldUseMergedPackLogic()) {
                     plugin.sendOriginalBasePackToPlayer(player);
                 }
@@ -203,6 +222,7 @@ public class PlayerResourceListener implements Listener {
         }
         plugin.clearPendingSingleUserSound(player.getUniqueId());
         plugin.clearPlayerPendingPackType(player.getUniqueId());
+        plugin.clearPlayerPackRequestId(player.getUniqueId());
 
         String currentTempMusicFile = plugin.getPlayerCurrentMusicPackFile(player.getUniqueId());
         if (currentTempMusicFile != null && plugin.getResourcePackGenerator() != null && !plugin.isPrewarmedPackFile(currentTempMusicFile)) {
