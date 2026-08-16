@@ -458,16 +458,37 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                     plugin.sendConfigMsg(player, "messages.bf.playlist.addUsage")
                     return
                 }
-                val song = findFolderSong(args[2])
+                var song: PresetSong? = null
+                var displayName = args[2]
+                // 1. 若输入是数字，尝试从最近一次搜索结果按序号添加（精确匹配作者）
+                val num = args[2].toIntOrNull()
+                if (num != null) {
+                    val results = plugin.getPlayerSearchResults(player.uniqueId)
+                    val hit = results.firstOrNull { it.index == num }
+                    if (hit != null && hit.url.isNotEmpty()) {
+                        displayName = if (hit.artist.isNotEmpty()) "${hit.artist} - ${hit.name}" else hit.name
+                        // 添加搜索结果（URL 可能是网络链接，直接存 URL；播放时用 handlePlay 网络播放）
+                        val added = pm.addToPlaylist(player.uniqueId, hit.url)
+                        if (added) {
+                            plugin.sendConfigMsg(player, "messages.bf.playlist.added", "song", displayName)
+                        } else {
+                            plugin.sendConfigMsg(player, "messages.bf.playlist.alreadyIn", "song", displayName)
+                        }
+                        return
+                    }
+                }
+                // 2. 按文件夹歌曲名/序号查找
+                song = findFolderSong(args[2])
                 if (song == null) {
                     plugin.sendConfigMsg(player, "messages.bf.play.notFound", "song", args[2])
                     return
                 }
+                displayName = song.name
                 val added = pm.addToPlaylist(player.uniqueId, song.url)
                 if (added) {
-                    plugin.sendConfigMsg(player, "messages.bf.playlist.added", "song", song.name)
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.added", "song", displayName)
                 } else {
-                    plugin.sendConfigMsg(player, "messages.bf.playlist.alreadyIn", "song", song.name)
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.alreadyIn", "song", displayName)
                 }
             }
 

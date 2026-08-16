@@ -55,35 +55,29 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
         val results = mutableListOf<SearchResult>()
         try {
             val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-            val url = URL("$baseUrl/diange?msg=$encoded&id=1&n=$page&apikey=$key")
-            val json = httpGetJson(url)
-            val root = JsonParser.parseString(json).asJsonObject
-            if (root.get("code")?.asInt != 200) return emptyList()
+            // diange 接口的 id 参数是"选择序号"：id=1,2,3... 每页返回一首不同的歌。
+            // 循环请求 id=1..10 收集多首搜索结果。
+            val maxResults = 10
+            for (i in 1..maxResults) {
+                val url = URL("$baseUrl/diange?msg=$encoded&id=$i&n=$page&apikey=$key")
+                val json = httpGetJson(url)
+                val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { continue }
+                if (root.get("code")?.asInt != 200) continue
 
-            // diange 接口：data 为单个歌曲对象（含 music_name/artist/music_link）
-            if (root.has("data") && root.get("data").isJsonObject) {
-                val data = root.getAsJsonObject("data")
-                val name = data.get("music_name")?.asString ?: ""
-                val artist = data.get("artist")?.asString ?: ""
-                val link = data.get("music_link")?.asString ?: ""
-                val cover = data.get("cover_link")?.asString
-                val lrc = data.get("lrc_content")?.asString
-                if (name.isNotEmpty() && link.isNotEmpty()) {
-                    results.add(SearchResult(1, name, artist, link, cover, lrc))
-                }
-            } else if (root.has("data") && root.get("data").isJsonArray) {
-                // 部分版本返回数组
-                root.getAsJsonArray("data").forEachIndexed { idx, el ->
-                    if (el.isJsonObject) {
-                        val o = el.asJsonObject
-                        val name = o.get("music_name")?.asString ?: o.get("name")?.asString ?: ""
-                        val artist = o.get("artist")?.asString ?: o.get("ar_name")?.asString ?: ""
-                        val link = o.get("music_link")?.asString ?: o.get("url")?.asString ?: ""
-                        if (name.isNotEmpty() && link.isNotEmpty()) {
-                            results.add(SearchResult(idx + 1, name, artist, link))
-                        }
+                if (root.has("data") && root.get("data").isJsonObject) {
+                    val data = root.getAsJsonObject("data")
+                    val name = data.get("music_name")?.asString ?: ""
+                    val artist = data.get("artist")?.asString ?: ""
+                    val link = data.get("music_link")?.asString ?: ""
+                    val cover = data.get("cover_link")?.asString
+                    val lrc = data.get("lrc_content")?.asString
+                    // 去重：跳过已收录的歌曲
+                    if (name.isNotEmpty() && link.isNotEmpty() && results.none { it.name == name && it.artist == artist }) {
+                        results.add(SearchResult(i, name, artist, link, cover, lrc))
                     }
                 }
+                // 若连续 2 次无有效结果，提前结束
+                if (results.isNotEmpty() && i > results.last().index + 2) break
             }
         } catch (e: Exception) {
             // 静默：搜索失败不打印控制台

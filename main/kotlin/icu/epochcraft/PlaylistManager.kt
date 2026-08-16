@@ -35,12 +35,16 @@ class PlaylistManager(private val plugin: MusicPlayerPlugin) {
     /** 当前播放索引：UUID -> 歌曲名（用于显示"下一首"） */
     private val currentQueueSong = ConcurrentHashMap<UUID, String>()
 
-    /** 持久化文件：plugins/PlayerMusic/playlists.yml */
-    private val playlistFile = File(plugin.dataFolder, "playlists.yml")
+    /** 持久化目录：plugins/PlayerMusic/playlists/（每个玩家一个 .yml 文件） */
+    private val playlistDir = File(plugin.dataFolder, "playlists")
 
     init {
+        if (!playlistDir.exists()) playlistDir.mkdirs()
         loadPlaylists()
     }
+
+    /** 获取玩家歌单文件 */
+    private fun playlistFileFor(uuid: UUID): File = File(playlistDir, "$uuid.yml")
 
     /** 获取玩家歌单（歌曲 URL 列表） */
     fun getPlaylist(playerId: UUID): List<String> {
@@ -126,14 +130,15 @@ class PlaylistManager(private val plugin: MusicPlayerPlugin) {
         }
 
         val url = queue.removeFirst()
-        // 找到 PresetSong（用于 handlePlay）
+        // 找到 PresetSong（用于 handlePlay）；网络 URL（搜索结果添加）没有对应 PresetSong
         val song = plugin.getPresetSongs().firstOrNull { it.url == url }
-        if (song == null) {
-            // 歌曲不存在，跳过到下一首
+        val isNetworkUrl = url.startsWith("http://") || url.startsWith("https://")
+        if (song == null && !isNetworkUrl) {
+            // 本地歌曲不存在，跳过到下一首
             playNextInQueue(player)
             return
         }
-        currentQueueSong[id] = song.name
+        currentQueueSong[id] = song?.name ?: "网络歌曲"
 
         // 播放
         if (plugin.musicCommands == null) {
@@ -172,15 +177,17 @@ class PlaylistManager(private val plugin: MusicPlayerPlugin) {
     /** 当前队列歌曲名 */
     fun getCurrentQueueSong(playerId: UUID): String? = currentQueueSong[playerId]
 
-    // ===================== 持久化 =====================
+    // ===================== 持久化（playlists/ 文件夹，每玩家一个 .yml） =====================
 
     private fun loadPlaylists() {
         try {
-            if (!playlistFile.exists()) return
-            val cfg = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(playlistFile)
-            for (key in cfg.getKeys(false)) {
-                val uuid = try { UUID.fromString(key) } catch (_: Exception) { continue }
-                val urls = cfg.getStringList(key)
+            if (!playlistDir.exists()) return
+            playlistDir.listFiles()?.forEach { file ->
+                val name = file.name
+                if (!name.endsWith(".yml")) return@forEach
+                val uuid = try { UUID.fromString(name.substring(0, name.length - 4)) } catch (_: Exception) { return@forEach }
+                val cfg = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file)
+                val urls = cfg.getStringList("songs")
                 if (urls.isNotEmpty()) playerPlaylists[uuid] = urls.toMutableList()
             }
         } catch (_: Exception) {
@@ -189,11 +196,12 @@ class PlaylistManager(private val plugin: MusicPlayerPlugin) {
 
     private fun savePlaylists() {
         try {
-            val cfg = org.bukkit.configuration.file.YamlConfiguration()
+            if (!playlistDir.exists()) playlistDir.mkdirs()
             for ((uuid, urls) in playerPlaylists) {
-                cfg.set(uuid.toString(), urls)
+                val cfg = org.bukkit.configuration.file.YamlConfiguration()
+                cfg.set("songs", urls)
+                cfg.save(playlistFileFor(uuid))
             }
-            cfg.save(playlistFile)
         } catch (_: Exception) {
         }
     }
