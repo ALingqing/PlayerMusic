@@ -652,7 +652,7 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                 plugin.setPlayerSearchResults(player.uniqueId, results)
                 player.sendMessage("§6===== §e音乐搜索结果: §f$query §6=====")
                 results.take(10).forEach { r ->
-                    val srcTag = if (r.url.isNotEmpty()) "" else " §c(源不可用)"
+                    val srcTag = if (r.url.isNotEmpty() || r.neteaseId != null) "" else " §c(源不可用)"
                     player.sendMessage("§7[${r.index}] §f${r.name} §7- §b${r.artist}$srcTag")
                 }
                 player.sendMessage("§7使用 §e/bf download <序号> §7下载并添加到音乐库")
@@ -677,6 +677,12 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         val result = results.firstOrNull { it.index == index }
         if (result == null) {
             plugin.sendConfigMsg(player, "messages.bf.download.noSearch", "index", input)
+            return
+        }
+        // 网易云搜索结果：没有直链但有网易云 ID → 走 ID 解析（柠柚 163music）
+        if (result.url.isEmpty() && result.neteaseId != null) {
+            plugin.sendConfigMsg(player, "messages.bf.download.resolving", "id", result.name)
+            doDownloadById(player, result.neteaseId)
             return
         }
         if (result.url.isEmpty()) {

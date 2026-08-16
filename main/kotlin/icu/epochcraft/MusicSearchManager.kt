@@ -33,6 +33,7 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
         val url: String,
         val coverUrl: String? = null,
         val lyrics: String? = null,
+        val neteaseId: String? = null, // 网易云歌曲 ID（下载时走柠柚 163music 解析）
     )
 
     data class DownloadInfo(
@@ -59,18 +60,66 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
 
     /**
      * 搜索歌曲，返回带状态的结果。
-     * 走 diange 关键词搜索；若接口整体 502（服务端故障），标记 serviceDown 以便提示，
-     * 不返回与关键词无关的兜底结果（避免"搜索与关联词毫不相干"）。
+     * 优先用网易云官方搜索接口（返回与关键词相关的歌曲 ID，下载走柠柚 163music 解析）；
+     * 若官方搜索不可用，回退到柠柚 diange。
      */
     fun searchWithOutcome(query: String, page: Int = 1): SearchOutcome {
+        // 1) 网易云官方搜索（直接可用，结果相关，返回歌曲 ID）
+        val netease = searchNetEaseOfficial(query, page)
+        if (netease.isNotEmpty()) {
+            return SearchOutcome(netease, serviceDown = false)
+        }
+        // 2) 回退柠柚 diange（能直接给 link 更好，但当前接口 502）
+        val diange = searchDiange(query, page)
+        return SearchOutcome(diange.results, serviceDown = diange.serviceDown)
+    }
+
+    /** 网易云官方搜索接口：/api/search/get/web?s=<词>&type=1&limit=10&offset=<页> */
+    private fun searchNetEaseOfficial(query: String, page: Int): List<SearchResult> {
+        return try {
+            val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
+            val offset = (page - 1) * 10
+            val url = URL("https://music.163.com/api/search/get/web?s=$encoded&type=1&limit=10&offset=$offset")
+            val json = httpGetJson(url, extraHeaders = mapOf("Referer" to "https://music.163.com/"))
+            val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { return emptyList() }
+            if (root.get("code")?.asInt != 200) return emptyList()
+            val result = root.getAsJsonObject("result") ?: return emptyList()
+            val songs = result.getAsJsonArray("songs") ?: return emptyList()
+            val out = mutableListOf<SearchResult>()
+            var idx = 1
+            for (el in songs) {
+                if (!el.isJsonObject) continue
+                val obj = el.asJsonObject
+                val id = obj.get("id")?.asLong ?: continue
+                val name = obj.get("name")?.asString ?: continue
+                val artist = try {
+                    val a = obj.getAsJsonArray("artists")
+                    if (a != null && a.size() > 0 && a[0].isJsonObject) a[0].asJsonObject.get("name")?.asString ?: "" else ""
+                } catch (_: Exception) { "" }
+                val albumCover = try {
+                    val albumEl = obj.get("album")
+                    if (albumEl != null && albumEl.isJsonObject) {
+                        val p = albumEl.asJsonObject.get("picUrl")
+                        if (p != null && p.isJsonPrimitive) p.asString else null
+                    } else null
+                } catch (_: Exception) { null }
+                out.add(SearchResult(idx, name, artist, "", albumCover, null, neteaseId = id.toString()))
+                idx++
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 柠柚 diange 搜索（返回带直链的结果；当前接口 502 时会标记 serviceDown） */
+    private fun searchDiange(query: String, page: Int): SearchOutcome {
         val key = apiKey()
         if (key.isEmpty()) return SearchOutcome(emptyList())
         val results = java.util.Collections.synchronizedList(mutableListOf<SearchResult>())
         val downRef = java.util.concurrent.atomic.AtomicBoolean(false)
         try {
             val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-            // diange 接口的 id 参数是"选择序号"：id=1,2,3... 每首返回不同的歌。
-            // 并行请求 id=1..8 收集多首（显著加快搜索速度，总耗时≈单次请求）。
             val maxResults = 8
             val executor = java.util.concurrent.Executors.newFixedThreadPool(maxResults)
             val futures = ArrayList<java.util.concurrent.Future<*>>()
@@ -82,7 +131,6 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
                         val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { return@Runnable }
                         val code = root.get("code")?.asInt ?: -1
                         if (code != 200) {
-                            // 502 等错误码 = 服务端故障（diange 上游 502）
                             if (code >= 500 || root.get("message")?.asString?.contains("搜索请求失败") == true) {
                                 downRef.set(true)
                             }
@@ -95,7 +143,6 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
                             val link = data.get("music_link")?.asString ?: ""
                             val cover = data.get("cover_link")?.asString
                             val lrc = data.get("lrc_content")?.asString
-                            // 只要有歌名就显示（link 可能为空=该曲源暂不可用，但用户能看到歌）
                             if (name.isNotEmpty()) {
                                 synchronized(results) {
                                     if (results.none { it.name == name && it.artist == artist }) {
@@ -108,15 +155,12 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
                     }
                 }))
             }
-            // 等待所有请求完成（总超时 20 秒）
             for (f in futures) {
                 try { f.get(20, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
             }
             executor.shutdownNow()
-            // 排序：有下载链接的优先，其余按序号
             results.sortWith(compareByDescending<SearchResult> { it.url.isNotEmpty() }.thenBy { it.index })
         } catch (e: Exception) {
-            // 静默：搜索失败不打印控制台
         }
         return SearchOutcome(results.toList(), serviceDown = downRef.get() && results.isEmpty())
     }
@@ -186,9 +230,12 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
         }
     }
 
-    private fun httpGetJson(url: URL): String {
+    private fun httpGetJson(url: URL, extraHeaders: Map<String, String> = emptyMap()): String {
         val conn = url.openConnection() as HttpURLConnection
-        conn.setRequestProperty("User-Agent", "PlayerMusic/" + plugin.description.version)
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+        for ((k, v) in extraHeaders) {
+            conn.setRequestProperty(k, v)
+        }
         conn.connectTimeout = 10000
         conn.readTimeout = 15000
         val stream: InputStream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
