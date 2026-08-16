@@ -449,6 +449,7 @@ class MusicPlayerPlugin : JavaPlugin() {
         // 未转换的 MP3：异步转成 OGG（放回 music 同目录）并删除原 MP3，完成后重扫一次
         if (pendingMp3.isNotEmpty() && mp3ConvertRunning.compareAndSet(false, true)) {
             org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
+                if (!isEnabled) { mp3ConvertRunning.set(false); return@Runnable }
                 try {
                     for (mp3 in pendingMp3) {
                         try {
@@ -472,6 +473,7 @@ class MusicPlayerPlugin : JavaPlugin() {
                 }
                 // 回到主线程重扫一次，让新转换的 OGG 入列
                 org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
+                    if (!isEnabled) return@Runnable
                     try {
                         rescanMusicFolder()
                     } catch (_: Exception) {

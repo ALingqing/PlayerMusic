@@ -637,6 +637,8 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         }
         plugin.sendConfigMsg(player, "messages.bf.search.searching", "query", query)
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            // 防止热加载/禁用后残留异步任务访问已关闭的类加载器（PlugManX 热加载常见）
+            if (!plugin.isEnabled) return@Runnable
             val outcome = manager.searchWithOutcome(query, 1)
             val results = outcome.results
             org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
@@ -697,8 +699,10 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
     private fun doDownloadById(player: Player, songId: String) {
         val manager = plugin.musicSearchManager ?: return
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            if (!plugin.isEnabled) return@Runnable
             val info = manager.resolveNetease(songId, "standard")
             org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (!plugin.isEnabled) return@Runnable
                 if (info == null) {
                     plugin.sendConfigMsg(player, "messages.bf.download.resolveFailed", "id", songId)
                     return@Runnable
@@ -718,6 +722,7 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
     private fun downloadAndAddToLibrary(player: Player, info: MusicSearchManager.DownloadInfo) {
         plugin.sendConfigMsg(player, "messages.bf.download.downloading", "name", info.name)
         org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+            if (!plugin.isEnabled) return@Runnable
             val manager = plugin.musicSearchManager ?: return@Runnable
             // 目标文件名：歌手 - 歌名.mp3
             val safeName = (if (info.artist.isNotEmpty()) "${info.artist} - ${info.name}" else info.name)
@@ -730,10 +735,12 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
             val targetMp3 = java.io.File(musicFolder, "$safeName.mp3")
             val ok = manager.downloadMp3(info.url, targetMp3)
             org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (!plugin.isEnabled) return@Runnable
                 if (ok) {
                     plugin.sendConfigMsg(player, "messages.bf.download.success", "name", safeName)
                     // 异步转换 MP3 → OGG，完成后直接播放该 OGG（不依赖重扫后的名字匹配，避免"有时不播"）
                     org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
+                        if (!plugin.isEnabled) return@Runnable
                         val oggFile = java.io.File(musicFolder, "$safeName.ogg")
                         val converted = try {
                             if (!oggFile.exists()) AudioConverter.convertMp3ToOgg(targetMp3, oggFile) else oggFile
@@ -745,6 +752,7 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                         }
                         // 回主线程：重扫入列 + 播放新歌
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
+                            if (!plugin.isEnabled) return@Runnable
                             try { plugin.rescanMusicFolder() } catch (_: Exception) {}
                             val targetOgg = if (converted != null && converted.exists()) converted else oggFile
                             if (targetOgg.exists() && targetOgg.length() > 100) {
