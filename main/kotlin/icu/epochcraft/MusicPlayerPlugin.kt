@@ -386,6 +386,8 @@ class MusicPlayerPlugin : JavaPlugin() {
         deduped.sortBy { it.name.lowercase() }
 
         var added = 0
+        // 已收录的歌曲标识（专辑 + 歌名），用于最终去重：同名同专辑只收录一次
+        val addedKeys = HashSet<String>()
         // 记录需要异步转换的 MP3（未缓存），转换完成后统一重扫一次
         val pendingMp3 = ArrayList<File>()
         for (oggFile in deduped) {
@@ -413,6 +415,13 @@ class MusicPlayerPlugin : JavaPlugin() {
                 album = rawAlbum
             } else {
                 album = null
+            }
+            // 最终去重：同一专辑下同名歌曲只收录一次（避免 .ogg 与 .mp3 转换缓存重复）
+            val albumKey = album ?: ""
+            val dedupeKey = albumKey + "/" + songName.lowercase()
+            if (!addedKeys.add(dedupeKey)) {
+                logPlayback("跳过重复歌曲: ${oggFile.name} (专辑: ${album ?: "默认"})")
+                continue
             }
             val albumLabel = album ?: "默认"
             val songLore = lore.map { line ->
