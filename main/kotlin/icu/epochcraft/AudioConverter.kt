@@ -22,6 +22,9 @@ object AudioConverter {
     val isAvailable: Boolean
         get() = findFfmpeg() != null
 
+    /** 返回检测到的 ffmpeg 路径（供日志/排查），未检测到返回 null */
+    fun detectedFfmpegPath(): String? = findFfmpeg()
+
     /** 检测可用的 ffmpeg 路径 */
     private fun findFfmpeg(): String? {
         // 1. 插件数据目录 plugins/PlayerMusic/ffmpeg/ffmpeg（用户上传的静态构建）

@@ -102,6 +102,13 @@ class MusicPlayerPlugin : JavaPlugin() {
         loadLanguageFile()
         loadConfiguration()
 
+        // 输出 ffmpeg 状态日志，便于排查 MP3→OGG 转换问题
+        if (AudioConverter.isAvailable) {
+            logger.info("已检测到 ffmpeg (${AudioConverter.detectedFfmpegPath()})，MP3→OGG 转换可用。")
+        } else {
+            logger.warning("未检测到 ffmpeg！MP3 无法转换为 OGG。请将 ffmpeg 静态构建上传到 plugins/PlayerMusic/ffmpeg/ffmpeg 后重启。")
+        }
+
         if (config.getBoolean("httpServer.enabled", false)) {
             initializeHttpServerAndGenerator()
         } else {
