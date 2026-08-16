@@ -363,12 +363,32 @@ class MusicPlayerPlugin : JavaPlugin() {
 
         val oggFiles = ArrayList<File>()
         collectOggFiles(musicFolder, oggFiles, recursive)
-        oggFiles.sortBy { it.name }
+        // 去重：同一首歌同时有 .ogg 和 .mp3 时，优先 .ogg（MP3 会转 OGG，避免重复收录）
+        val uniqueByName = LinkedHashMap<String, File>()
+        oggFiles.sortedBy { it.name }.forEach { file ->
+            val lower = file.name.lowercase()
+            val key = if (lower.endsWith(".ogg")) file.name.substring(0, file.name.length - 4)
+                      else if (lower.endsWith(".mp3")) file.name.substring(0, file.name.length - 4)
+                      else file.name
+            val existing = uniqueByName[key]
+            if (existing == null) {
+                uniqueByName[key] = file
+            } else {
+                // 已有一个；若已存在的是 MP3 而当前是 OGG，则用 OGG 替换 MP3
+                val existingLower = existing.name.lowercase()
+                if (existingLower.endsWith(".mp3") && lower.endsWith(".ogg")) {
+                    uniqueByName[key] = file
+                }
+                // 否则保留已有的（OGG 优先）
+            }
+        }
+        val deduped = ArrayList(uniqueByName.values)
+        deduped.sortBy { it.name }
 
         var added = 0
         // 记录需要异步转换的 MP3（未缓存），转换完成后自动重扫
         val pendingMp3 = ArrayList<File>()
-        for (oggFile in oggFiles) {
+        for (oggFile in deduped) {
             // MP3 文件：先转成 OGG 缓存到 .converted 目录，转换失败则跳过
             var playableFile = oggFile
             if (oggFile.name.lowercase().endsWith(".mp3")) {
