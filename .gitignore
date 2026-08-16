@@ -28,3 +28,6 @@ Thumbs.db
 # Local plugin data
 *.db
 *.db-journal
+
+# 临时 ffmpeg 下载
+tmp_ffmpeg/

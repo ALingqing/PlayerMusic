@@ -95,6 +95,8 @@ class MusicPlayerPlugin : JavaPlugin() {
                 logger.severe("无法创建插件数据文件夹: ${dataFolder.absolutePath} - 插件功能可能受限!")
             }
         }
+        // 设置转换器数据目录（用于检测 plugins/PlayerMusic/ffmpeg/ffmpeg）
+        AudioConverter.dataFolder = dataFolder
         installLogFileHandler()
         saveDefaultConfig()
         loadLanguageFile()
