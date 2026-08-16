@@ -732,13 +732,27 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
             org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
                 if (ok) {
                     plugin.sendConfigMsg(player, "messages.bf.download.success", "name", safeName)
-                    // 异步转换 MP3 → OGG 缓存并重扫，完成后自动播放
+                    // 异步转换 MP3 → OGG，完成后直接播放该 OGG（不依赖重扫后的名字匹配，避免"有时不播"）
                     org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, Runnable {
-                        plugin.convertMp3InFolderAndRescan(targetMp3)
+                        val oggFile = java.io.File(musicFolder, "$safeName.ogg")
+                        val converted = try {
+                            if (!oggFile.exists()) AudioConverter.convertMp3ToOgg(targetMp3, oggFile) else oggFile
+                        } catch (_: Exception) { null }
+                        // 转换成功则删除原 MP3
+                        if (converted != null && converted.exists() && converted.length() > 100) {
+                            targetMp3.delete()
+                            plugin.logPlayback("MP3 已转换: ${targetMp3.name} -> ${oggFile.name}")
+                        }
+                        // 回主线程：重扫入列 + 播放新歌
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
-                            val song = findFolderSong(safeName)
-                            if (song != null) {
-                                handlePlay(player, song.url, PlaybackContextType.SINGLE, null, song)
+                            try { plugin.rescanMusicFolder() } catch (_: Exception) {}
+                            val targetOgg = if (converted != null && converted.exists()) converted else oggFile
+                            if (targetOgg.exists() && targetOgg.length() > 100) {
+                                val url = targetOgg.toURI().toString()
+                                val song = PresetSong(safeName, url, org.bukkit.Material.MUSIC_DISC_CAT, emptyList(), null)
+                                handlePlay(player, url, PlaybackContextType.SINGLE, null, song)
+                            } else {
+                                plugin.sendConfigMsg(player, "messages.bf.download.convertFailed", "name", safeName)
                             }
                         })
                     })

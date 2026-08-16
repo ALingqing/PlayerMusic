@@ -540,8 +540,10 @@ class MusicPlayerPlugin : JavaPlugin() {
     }
 
     /**
-     * 下载 MP3 后调用：将指定的 MP3 转 OGG（放回同目录）并删除原 MP3，再完整 reload（等同 /bf reload）。
-     * 供 MusicCommands 异步调用。转换在异步线程，reload 回主线程。
+     * 下载 MP3 后调用：将指定的 MP3 转 OGG（放回同目录）并删除原 MP3，再重扫音乐列表。
+     * 供 MusicCommands 异步调用。转换在异步线程，重扫回主线程。
+     * 注意：这里只重扫音乐列表（rescanMusicFolder），不要调用 reloadPluginConfiguration()
+     * —— 后者会 stop/start HTTP 服务器，正在下载/播放中的资源包会被中断，导致"音乐过几秒强制关闭"。
      */
     fun convertMp3InFolderAndRescan(mp3File: File) {
         try {
@@ -554,10 +556,10 @@ class MusicPlayerPlugin : JavaPlugin() {
                     logPlayback("MP3 已转换: ${mp3File.name} -> ${oggOut.name}")
                 }
             }
-            // 等同 /bf reload：完整重载配置 + 重扫音乐文件夹（回主线程执行）
+            // 只重扫音乐列表（回主线程执行），不重启 HTTP 服务器
             org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
                 try {
-                    reloadPluginConfiguration()
+                    rescanMusicFolder()
                 } catch (_: Exception) {
                 }
             })
