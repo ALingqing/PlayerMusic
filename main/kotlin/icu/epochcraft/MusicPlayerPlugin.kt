@@ -383,18 +383,17 @@ class MusicPlayerPlugin : JavaPlugin() {
             }
         }
         val deduped = ArrayList(uniqueByName.values)
-        deduped.sortBy { it.name }
+        deduped.sortBy { it.name.lowercase() }
 
         var added = 0
-        // 记录需要异步转换的 MP3（未缓存），转换完成后自动重扫
+        // 记录需要异步转换的 MP3（未缓存），转换完成后统一重扫一次
         val pendingMp3 = ArrayList<File>()
         for (oggFile in deduped) {
-            // MP3 文件：先转成 OGG 缓存到 .converted 目录，转换失败则跳过
+            // MP3 文件：仅当已有 OGG 缓存时才收录；否则加入异步转换队列（本次不收录）
             var playableFile = oggFile
             if (oggFile.name.lowercase().endsWith(".mp3")) {
                 val converted = getCachedOggForMp3(oggFile)
                 if (converted == null) {
-                    // 未缓存：本次跳过，加入异步转换队列
                     pendingMp3.add(oggFile)
                     continue
                 }
@@ -423,9 +422,9 @@ class MusicPlayerPlugin : JavaPlugin() {
             added++
             logPlayback("自动识别音乐文件: ${oggFile.absolutePath} -> 歌曲名: '$songName'" + (if (album != null) " (专辑: $album)" else ""))
         }
-        logPlayback("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首音乐文件。")
+        logPlayback("已从音乐文件夹 (${musicFolder.absolutePath}) 自动识别 $added 首音乐文件。" + if (pendingMp3.isNotEmpty()) " (另有 ${pendingMp3.size} 个 MP3 待转换)" else "")
 
-        // 未缓存的 MP3：异步转换，完成后自动重扫（防重复触发）
+        // 未缓存的 MP3：异步转换一次，完成后统一重扫（防重复触发）
         if (pendingMp3.isNotEmpty() && mp3ConvertRunning.compareAndSet(false, true)) {
             org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
                 try {
@@ -436,12 +435,10 @@ class MusicPlayerPlugin : JavaPlugin() {
                 } finally {
                     mp3ConvertRunning.set(false)
                 }
-                // 回到主线程重扫，让新转换的 MP3 入列
+                // 回到主线程重扫一次，让新转换的 MP3 入列
                 org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
                     try {
-                        val before = presetSongsList.size
-                        loadMusicFolderSongs(config)
-                        logPlayback("MP3 异步转换完成，新增 ${presetSongsList.size - before} 首音乐。")
+                        rescanMusicFolder()
                     } catch (_: Exception) {
                     }
                 })
