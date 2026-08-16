@@ -29,6 +29,7 @@ messages:
       usage: "§e用法: /bf search <歌曲名>"
       searching: "§7正在搜索音乐: <query>..."
       noResult: "§c未找到与 '<query>' 相关的音乐。"
+      serviceDown: "§c柠柚音乐搜索服务暂不可用（接口 502），请稍后再试或换一个歌名。
     download:
       usage: "§e用法: /bf download <搜索结果序号 或 网易云歌曲ID>"
       resolving: "§7正在解析: <id>..."
