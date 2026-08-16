@@ -102,6 +102,12 @@ class MusicPlayerPlugin : JavaPlugin() {
         loadLanguageFile()
         loadConfiguration()
 
+        // 解压内置 ffmpeg 到 plugins/PlayerMusic/ffmpeg/ffmpeg（若 jar 内置了）
+        val extracted = NativeFfmpegLoader.extract(dataFolder)
+        if (extracted != null) {
+            logger.info("已解压内置 ffmpeg 到 $extracted")
+        }
+
         // 输出 ffmpeg 状态日志，便于排查 MP3→OGG 转换问题
         if (AudioConverter.isAvailable) {
             logger.info("已检测到 ffmpeg (${AudioConverter.detectedFfmpegPath()})，MP3→OGG 转换可用。")

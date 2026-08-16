@@ -52,6 +52,17 @@
             <resource>
                 <directory>main/resources</directory>
                 <filtering>true</filtering>
+                <excludes>
+                    <exclude>native/**</exclude>
+                </excludes>
+            </resource>
+            <!-- 内置 ffmpeg 二进制（gzip，不进行资源过滤，避免损坏） -->
+            <resource>
+                <directory>main/resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>native/**</include>
+                </includes>
             </resource>
         </resources>
 

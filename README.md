@@ -34,29 +34,24 @@ PlayerMusic 是一款功能丰富的 Spigot 插件，允许服务器管理员和
 
 *   **Minecraft 服务器**: Paper 26.2 (Minecraft 26.2) 或兼容的服务端。
 *   **Java**: Java 25 或更高版本 (Minecraft 26.2 要求 Java SE 25)。
-*   **ffmpeg**: `/bf download` 下载音乐并转 OGG 时需要。
 *   **依赖**:
     *   Gson (用于 JSON 处理)
     *   Apache Commons Codec (用于 SHA-1 哈希计算)
 
-## 安装 ffmpeg（音乐下载转换需要）
+## 内置 ffmpeg（音乐下载转换开箱即用）
 
-插件使用 **ffmpeg** 将 MP3 转为 OGG Vorbis（`ffmpeg -y -i in.mp3 -vn -c:a libvorbis out.ogg`，与主流音乐插件一致，兼容性最佳）。
+插件 jar 内置 **Linux amd64 静态 ffmpeg**（gzip 压缩）：
+
+*   启动时自动解压到 `plugins/PlayerMusic/ffmpeg/ffmpeg` 并设置可执行权限
+*   `/bf search`、`/bf download` 的 MP3→OGG 转换**无需额外安装任何东西**
+*   转换命令：`ffmpeg -y -i in.mp3 -vn -c:a libvorbis -q:a 4 out.ogg`（与主流音乐插件一致，兼容性最佳）
 
 ffmpeg 检测优先级：
-1. `plugins/PlayerMusic/ffmpeg/ffmpeg`（推荐：下载 Linux 静态构建上传到这里）
+1. 插件内置 ffmpeg（`plugins/PlayerMusic/ffmpeg/ffmpeg`，自动解压）
 2. 系统 PATH 中的 `ffmpeg`
 
-### 上传静态 ffmpeg（无 root 面板推荐）
-
-1. 下载 Linux amd64 静态构建：
-   ```
-   https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
-   ```
-2. 解压得到 `bin/ffmpeg` 文件（无后缀的 Linux ELF 可执行文件）
-3. 面板 Files → `plugins/PlayerMusic/` → 新建 `ffmpeg` 文件夹 → 上传 `ffmpeg` 文件到 `plugins/PlayerMusic/ffmpeg/ffmpeg`
-4. 重启服务器
-
+> **提示**：内置 ffmpeg 是 Linux 版，仅支持 Linux 服务器（绝大多数 Minecraft 服务器都是 Linux）。若在 Windows 上运行服务器，需自行安装 ffmpeg 并加入 PATH。
+>
 > 只播放本地 `music` 文件夹里的 `.ogg` 文件不需要 ffmpeg。
 
 ## 安装步骤
