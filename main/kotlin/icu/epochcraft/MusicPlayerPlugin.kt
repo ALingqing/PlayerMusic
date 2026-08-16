@@ -352,13 +352,13 @@ class MusicPlayerPlugin : JavaPlugin() {
         basePackPromptMessage = ChatColor.translateAlternateColorCodes('&', config.getString("baseResourcePack.promptMessage", "§6加载音乐资源包...")!!)
         originalPackPromptMessage = ChatColor.translateAlternateColorCodes('&', config.getString("baseResourcePack.originalPackPromptMessage", "§6恢复服务器默认资源包...")!!)
 
-        loadMusicFolderSongs(config)
+        loadMusicFolderSongs(config, allowMp3Convert = true)
         logger.info("已加载 ${presetSongsList.size} 首音乐。")
     }
 
     // ===================== 音乐文件夹扫描 =====================
 
-    private fun loadMusicFolderSongs(config: FileConfiguration) {
+    private fun loadMusicFolderSongs(config: FileConfiguration, allowMp3Convert: Boolean = true) {
         presetSongsList.removeIf { it.url != null && it.url.startsWith("file://") }
 
         if (!config.getBoolean("musicFolder.enabled", true)) return
@@ -447,7 +447,9 @@ class MusicPlayerPlugin : JavaPlugin() {
         }
 
         // 未转换的 MP3：异步转成 OGG（放回 music 同目录）并删除原 MP3，完成后重扫一次
-        if (pendingMp3.isNotEmpty() && mp3ConvertRunning.compareAndSet(false, true)) {
+        // 注意：allowMp3Convert=false（转换完成后的重扫）时不再触发新一轮转换，
+        // 避免"重扫→发现MP3→转换→重扫→..."无限循环占满主线程（spark 实测 47% CPU）
+        if (allowMp3Convert && pendingMp3.isNotEmpty() && mp3ConvertRunning.compareAndSet(false, true)) {
             org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(this, Runnable {
                 if (!isEnabled) { mp3ConvertRunning.set(false); return@Runnable }
                 try {
@@ -471,11 +473,11 @@ class MusicPlayerPlugin : JavaPlugin() {
                 } finally {
                     mp3ConvertRunning.set(false)
                 }
-                // 回到主线程重扫一次，让新转换的 OGG 入列
+                // 回到主线程重扫一次，让新转换的 OGG 入列（allowMp3Convert=false：不再触发新一轮转换）
                 org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
                     if (!isEnabled) return@Runnable
                     try {
-                        rescanMusicFolder()
+                        rescanMusicFolder(triggerConvert = false)
                     } catch (_: Exception) {
                     }
                 })
@@ -535,9 +537,9 @@ class MusicPlayerPlugin : JavaPlugin() {
         }
     }
 
-    fun rescanMusicFolder(): Int {
+    fun rescanMusicFolder(triggerConvert: Boolean = true): Int {
         val before = presetSongsList.size
-        loadMusicFolderSongs(config)
+        loadMusicFolderSongs(config, allowMp3Convert = triggerConvert)
         return presetSongsList.size - before
     }
 
@@ -561,7 +563,7 @@ class MusicPlayerPlugin : JavaPlugin() {
             // 只重扫音乐列表（回主线程执行），不重启 HTTP 服务器
             org.bukkit.Bukkit.getScheduler().runTask(this, Runnable {
                 try {
-                    rescanMusicFolder()
+                    rescanMusicFolder(triggerConvert = false)
                 } catch (_: Exception) {
                 }
             })

@@ -753,7 +753,7 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                         // 回主线程：重扫入列 + 播放新歌
                         org.bukkit.Bukkit.getScheduler().runTask(plugin, Runnable {
                             if (!plugin.isEnabled) return@Runnable
-                            try { plugin.rescanMusicFolder() } catch (_: Exception) {}
+                            try { plugin.rescanMusicFolder(triggerConvert = false) } catch (_: Exception) {}
                             val targetOgg = if (converted != null && converted.exists()) converted else oggFile
                             if (targetOgg.exists() && targetOgg.length() > 100) {
                                 val url = targetOgg.toURI().toString()
