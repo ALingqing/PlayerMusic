@@ -650,12 +650,9 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                 }
                 // 存结果到插件（每个玩家最多保留最近一次搜索）
                 plugin.setPlayerSearchResults(player.uniqueId, results)
-                if (outcome.serviceDown) {
-                    player.sendMessage("§c柠柚音乐搜索服务暂不可用，已自动改为展示网易云热歌榜。")
-                }
                 player.sendMessage("§6===== §e音乐搜索结果: §f$query §6=====")
                 results.take(10).forEach { r ->
-                    val srcTag = if (r.url.isNotEmpty() || r.neteaseId != null) "" else " §c(源不可用)"
+                    val srcTag = if (r.url.isNotEmpty()) "" else " §c(源不可用)"
                     player.sendMessage("§7[${r.index}] §f${r.name} §7- §b${r.artist}$srcTag")
                 }
                 player.sendMessage("§7使用 §e/bf download <序号> §7下载并添加到音乐库")
@@ -680,11 +677,6 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         val result = results.firstOrNull { it.index == index }
         if (result == null) {
             plugin.sendConfigMsg(player, "messages.bf.download.noSearch", "index", input)
-            return
-        }
-        // 热歌榜兜底结果：没有直链但有网易云 ID → 走 ID 解析
-        if (result.url.isEmpty() && result.neteaseId != null) {
-            doDownloadById(player, result.neteaseId)
             return
         }
         if (result.url.isEmpty()) {
