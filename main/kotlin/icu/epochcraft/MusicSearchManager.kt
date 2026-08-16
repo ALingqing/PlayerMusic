@@ -52,33 +52,48 @@ class MusicSearchManager(private val plugin: MusicPlayerPlugin) {
     fun search(query: String, page: Int = 1): List<SearchResult> {
         val key = apiKey()
         if (key.isEmpty()) return emptyList()
-        val results = mutableListOf<SearchResult>()
+        val results = java.util.Collections.synchronizedList(mutableListOf<SearchResult>())
         try {
             val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
-            // diange 接口的 id 参数是"选择序号"：id=1,2,3... 每页返回一首不同的歌。
-            // 循环请求 id=1..10 收集多首搜索结果。
-            val maxResults = 10
+            // diange 接口的 id 参数是"选择序号"：id=1,2,3... 每首返回不同的歌。
+            // 并行请求 id=1..8 收集多首（显著加快搜索速度，总耗时≈单次请求）。
+            val maxResults = 8
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(maxResults)
+            val futures = ArrayList<java.util.concurrent.Future<*>>()
             for (i in 1..maxResults) {
-                val url = URL("$baseUrl/diange?msg=$encoded&id=$i&n=$page&apikey=$key")
-                val json = httpGetJson(url)
-                val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { continue }
-                if (root.get("code")?.asInt != 200) continue
-
-                if (root.has("data") && root.get("data").isJsonObject) {
-                    val data = root.getAsJsonObject("data")
-                    val name = data.get("music_name")?.asString ?: ""
-                    val artist = data.get("artist")?.asString ?: ""
-                    val link = data.get("music_link")?.asString ?: ""
-                    val cover = data.get("cover_link")?.asString
-                    val lrc = data.get("lrc_content")?.asString
-                    // 去重：跳过已收录的歌曲
-                    if (name.isNotEmpty() && link.isNotEmpty() && results.none { it.name == name && it.artist == artist }) {
-                        results.add(SearchResult(i, name, artist, link, cover, lrc))
+                futures.add(executor.submit(Runnable {
+                    try {
+                        val url = URL("$baseUrl/diange?msg=$encoded&id=$i&n=$page&apikey=$key")
+                        val json = httpGetJson(url)
+                        val root = try { JsonParser.parseString(json).asJsonObject } catch (_: Exception) { return@Runnable }
+                        if (root.get("code")?.asInt != 200) return@Runnable
+                        if (root.has("data") && root.get("data").isJsonObject) {
+                            val data = root.getAsJsonObject("data")
+                            val name = data.get("music_name")?.asString ?: ""
+                            val artist = data.get("artist")?.asString ?: ""
+                            val link = data.get("music_link")?.asString ?: ""
+                            val cover = data.get("cover_link")?.asString
+                            val lrc = data.get("lrc_content")?.asString
+                            // 只要有歌名就显示（link 可能为空=该曲源暂不可用，但用户能看到歌）
+                            if (name.isNotEmpty()) {
+                                synchronized(results) {
+                                    if (results.none { it.name == name && it.artist == artist }) {
+                                        results.add(SearchResult(i, name, artist, link, cover, lrc))
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
                     }
-                }
-                // 若连续 2 次无有效结果，提前结束
-                if (results.isNotEmpty() && i > results.last().index + 2) break
+                }))
             }
+            // 等待所有请求完成（总超时 20 秒）
+            for (f in futures) {
+                try { f.get(20, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+            }
+            executor.shutdownNow()
+            // 排序：有下载链接的优先，其余按序号
+            results.sortWith(compareByDescending<SearchResult> { it.url.isNotEmpty() }.thenBy { it.index })
         } catch (e: Exception) {
             // 静默：搜索失败不打印控制台
         }

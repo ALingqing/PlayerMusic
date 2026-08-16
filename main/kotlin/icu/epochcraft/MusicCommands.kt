@@ -647,7 +647,8 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                 plugin.setPlayerSearchResults(player.uniqueId, results)
                 player.sendMessage("§6===== §e音乐搜索结果: §f$query §6=====")
                 results.take(10).forEach { r ->
-                    player.sendMessage("§7[${r.index}] §f${r.name} §7- §b${r.artist}")
+                    val srcTag = if (r.url.isNotEmpty()) "" else " §c(源不可用)"
+                    player.sendMessage("§7[${r.index}] §f${r.name} §7- §b${r.artist}$srcTag")
                 }
                 player.sendMessage("§7使用 §e/bf download <序号> §7下载并添加到音乐库")
             })
@@ -671,6 +672,10 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
         val result = results.firstOrNull { it.index == index }
         if (result == null) {
             plugin.sendConfigMsg(player, "messages.bf.download.noSearch", "index", input)
+            return
+        }
+        if (result.url.isEmpty()) {
+            plugin.sendConfigMsg(player, "messages.bf.download.sourceUnavailable", "name", result.name)
             return
         }
         plugin.sendConfigMsg(player, "messages.bf.download.resolving", "id", result.name)

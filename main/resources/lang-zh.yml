@@ -38,6 +38,7 @@ messages:
       noSearch: "§c请先使用 /bf search <歌曲名> 搜索。序号 <index> 无效。"
       resolveFailed: "§c无法解析歌曲: <id>"
       convertFailed: "§c下载或音频转换失败: <name>。请确认服务器存在 ffmpeg（plugins/PlayerMusic/ffmpeg/ffmpeg）"
+      sourceUnavailable: "§c歌曲 <name> 的播放源暂不可用，请换一首试试。"
     stop:
       notPlaying: "§e你当前没有在播放任何音乐。"
       stoppedForSelf: "§a已为你停止播放音乐。"
