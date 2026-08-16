@@ -51,3 +51,11 @@ musicApi:
   enabled: true # 是否启用音乐搜索/下载功能 (true/false)
   apiKey: "" # 柠柚 API 的 apikey
   quality: "standard" # 网易云音质: standard(标准) / exhigh(极高) / lossless(无损) / hires(Hi-Res)
+
+# 服务器共享歌单 (/bf playlist server)
+# 填写音乐文件夹中的歌曲名（需与文件名一致，不含扩展名），玩家播放时会按此顺序连播
+playlist:
+  serverSongs:
+    - "歌名1"
+    - "歌名2"
+

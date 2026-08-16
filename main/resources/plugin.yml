@@ -52,6 +52,9 @@ permissions:
   playermusic.info:
     description: 允许使用 /bf info 查看插件信息。
     default: true
+  playermusic.playlist:
+    description: 允许使用 /bf playlist 歌单功能（收藏/连播）。
+    default: true
   playermusic.internal.join:
     description: Allows internal joining to rooms (e.g. via specific plugin features).
     default: op

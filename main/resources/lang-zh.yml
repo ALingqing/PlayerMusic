@@ -88,6 +88,23 @@ messages:
       set: "§a音量已设置为 <percent>%。"
       invalid: "§c无效的音量值，请输入 0-100 之间的数字。"
     info: {} # /bf info 使用硬编码格式
+    playlist:
+      addUsage: "§e用法: /bf playlist add <歌曲名或序号>"
+      added: "§a已添加歌曲到歌单: <song>"
+      alreadyIn: "§e歌曲已在歌单中: <song>"
+      removeUsage: "§e用法: /bf playlist remove <序号>"
+      removed: "§a已从歌单移除序号 <index> 的歌曲。"
+      removeFailed: "§c移除失败，请检查序号。"
+      empty: "§e你的歌单是空的。使用 §e/bf playlist add <歌曲名> §e添加歌曲。"
+      cleared: "§a歌单已清空。"
+      playing: "§a开始播放歌单（<count> 首）。播完自动停止。"
+      looping: "§a开始循环播放歌单（<count> 首）。"
+      playingAll: "§a开始顺序播放音乐文件夹全部歌曲（<count> 首）。"
+      playingServer: "§a开始播放服务器共享歌单（<count> 首）。"
+      serverEmpty: "§c服务器共享歌单为空，或歌曲不在音乐文件夹中。请在 config.yml 的 playlist.serverSongs 配置。"
+      finished: "§e歌单已播放完毕。"
+      stopped: "§c歌单播放已停止。"
+      notPlaying: "§e当前没有歌单在播放。使用 /bf playlist play 开始。"
 
   playurl: # 通用播放错误消息
     preparing: "§7正在准备播放音乐..."

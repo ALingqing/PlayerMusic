@@ -376,6 +376,32 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
                     return true
                 }
 
+                "playlist" -> {
+                    if (!canExecute(sender, "playermusic.playlist", true)) return true
+                    handlePlaylistCommand(sender as Player, args)
+                    return true
+                }
+
+                "next" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val p = sender as Player
+                    val pm = plugin.playlistManager
+                    if (pm != null && pm.isPlayingQueue(p.uniqueId)) {
+                        pm.playNextInQueue(p)
+                    } else {
+                        plugin.sendConfigMsg(p, "messages.bf.playlist.notPlaying")
+                    }
+                    return true
+                }
+
+                "stopqueue" -> {
+                    if (!canExecute(sender, "playermusic.play", true)) return true
+                    val p = sender as Player
+                    plugin.playlistManager?.stopQueue(p.uniqueId)
+                    plugin.sendConfigMsg(p, "messages.bf.playlist.stopped")
+                    return true
+                }
+
                 "info" -> {
                     if (!canExecute(sender, "playermusic.info", false)) return true
                     val pdf = plugin.description
@@ -414,6 +440,136 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
             return true
         }
         return false
+    }
+
+    /**
+     * 歌单命令：/bf playlist <add|remove|list|play|loop|clear|all|server>
+     */
+    private fun handlePlaylistCommand(player: Player, args: Array<out String>) {
+        val pm = plugin.playlistManager ?: run {
+            plugin.sendConfigMsg(player, "messages.general.httpDisabled")
+            return
+        }
+        val sub = if (args.size >= 2) args[1].lowercase() else "help"
+
+        when (sub) {
+            "add" -> {
+                if (args.size < 3) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.addUsage")
+                    return
+                }
+                val song = findFolderSong(args[2])
+                if (song == null) {
+                    plugin.sendConfigMsg(player, "messages.bf.play.notFound", "song", args[2])
+                    return
+                }
+                val added = pm.addToPlaylist(player.uniqueId, song.url)
+                if (added) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.added", "song", song.name)
+                } else {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.alreadyIn", "song", song.name)
+                }
+            }
+
+            "remove" -> {
+                if (args.size < 3) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.removeUsage")
+                    return
+                }
+                val idx = args[2].toIntOrNull()
+                if (idx == null || !pm.removeFromPlaylist(player.uniqueId, idx)) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.removeFailed")
+                    return
+                }
+                plugin.sendConfigMsg(player, "messages.bf.playlist.removed", "index", args[2])
+            }
+
+            "list" -> {
+                val list = pm.getPlaylist(player.uniqueId)
+                if (list.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.empty")
+                    return
+                }
+                player.sendMessage(ChatColor.GOLD.toString() + "===== " + ChatColor.YELLOW.toString() + "我的歌单" + ChatColor.GOLD.toString() + " =====")
+                list.forEachIndexed { idx, url ->
+                    val song = plugin.getPresetSongs().firstOrNull { it.url == url }
+                    val name = song?.name ?: "(未知)"
+                    player.sendMessage("${ChatColor.GRAY}[${idx + 1}] ${ChatColor.WHITE}$name")
+                }
+                player.sendMessage(ChatColor.GRAY.toString() + "使用 /bf playlist play 开始播放")
+            }
+
+            "clear" -> {
+                pm.clearPlaylist(player.uniqueId)
+                plugin.sendConfigMsg(player, "messages.bf.playlist.cleared")
+            }
+
+            "play" -> {
+                val list = pm.getPlaylist(player.uniqueId)
+                if (list.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.empty")
+                    return
+                }
+                pm.startQueue(player, list, false)
+                plugin.sendConfigMsg(player, "messages.bf.playlist.playing", "count", list.size.toString())
+            }
+
+            "loop" -> {
+                val list = pm.getPlaylist(player.uniqueId)
+                if (list.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.empty")
+                    return
+                }
+                pm.startQueue(player, list, true)
+                plugin.sendConfigMsg(player, "messages.bf.playlist.looping", "count", list.size.toString())
+            }
+
+            "all" -> {
+                // 音乐文件夹所有歌顺序播放
+                val songs = plugin.getPresetSongs()
+                if (songs.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.general.noSongs")
+                    return
+                }
+                val urls = songs.map { it.url }
+                pm.startQueue(player, urls, false)
+                plugin.sendConfigMsg(player, "messages.bf.playlist.playingAll", "count", urls.size.toString())
+            }
+
+            "server" -> {
+                // 服务器共享歌单（config.yml 中 playlist.serverSongs）
+                val serverSongs = plugin.config.getStringList("playlist.serverSongs")
+                if (serverSongs.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.serverEmpty")
+                    return
+                }
+                // 解析配置的歌名 → 找到歌曲 URL
+                val urls = ArrayList<String>()
+                for (name in serverSongs) {
+                    val song = findFolderSong(name)
+                    if (song != null) urls.add(song.url)
+                }
+                if (urls.isEmpty()) {
+                    plugin.sendConfigMsg(player, "messages.bf.playlist.serverEmpty")
+                    return
+                }
+                pm.startQueue(player, urls, false)
+                plugin.sendConfigMsg(player, "messages.bf.playlist.playingServer", "count", urls.size.toString())
+            }
+
+            else -> {
+                player.sendMessage(ChatColor.GOLD.toString() + "===== " + ChatColor.YELLOW.toString() + "歌单" + ChatColor.GOLD.toString() + " =====")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist add <歌曲名或序号> ${ChatColor.GRAY}- 添加")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist remove <序号> ${ChatColor.GRAY}- 移除")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist list ${ChatColor.GRAY}- 查看歌单")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist play ${ChatColor.GRAY}- 顺序播放歌单")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist loop ${ChatColor.GRAY}- 循环播放歌单")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist all ${ChatColor.GRAY}- 播放整个音乐文件夹")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist server ${ChatColor.GRAY}- 播放服务器共享歌单")
+                player.sendMessage("${ChatColor.YELLOW}/bf playlist clear ${ChatColor.GRAY}- 清空歌单")
+                player.sendMessage("${ChatColor.GRAY}播放中可用 ${ChatColor.YELLOW}/bf next${ChatColor.GRAY} 切下一首，${ChatColor.YELLOW}/bf stopqueue${ChatColor.GRAY} 停止")
+            }
+        }
     }
 
     /** 从音乐文件夹的歌曲列表中按名称或序号查找歌曲 */
@@ -658,17 +814,29 @@ class MusicCommands(private val plugin: MusicPlayerPlugin) : CommandExecutor, Ta
             when {
                 args.size == 1 -> {
                     val input = args[0].lowercase()
-                    val subCommands = ArrayList(listOf("play", "search", "download", "random", "loop", "volume", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info"))
+                    val subCommands = ArrayList(listOf("play", "search", "download", "random", "loop", "volume", "stop", "gui", "createroom", "join", "start", "roomplay", "disbandroom", "reload", "rescan", "info", "playlist", "next", "stopqueue"))
                     if (sender is Player) {
                         subCommands.removeIf { cmd ->
                             var perm = "playermusic.$cmd"
                             if (cmd == "start" || cmd == "roomplay") perm = "playermusic.room.$cmd"
+                            if (cmd == "playlist") perm = "playermusic.playlist"
                             !sender.hasPermission(perm)
                         }
                     } else {
                         subCommands.removeIf { it != "reload" && it != "info" }
                     }
                     addMatchingCompletions(completions, input, *subCommands.toTypedArray())
+                }
+
+                args.size == 2 && args[0].equals("playlist", ignoreCase = true) && sender.hasPermission("playermusic.playlist") -> {
+                    val input = args[1].lowercase()
+                    val listSubs = arrayOf("add", "remove", "list", "play", "loop", "all", "server", "clear")
+                    addMatchingCompletions(completions, input, *listSubs)
+                }
+
+                args.size == 3 && args[0].equals("playlist", ignoreCase = true) && sender.hasPermission("playermusic.playlist")
+                        && (args[1].equals("add", ignoreCase = true) || args[1].equals("remove", ignoreCase = true)) -> {
+                    addSongCompletions(completions, args[2].lowercase())
                 }
 
                 args.size == 2 -> {

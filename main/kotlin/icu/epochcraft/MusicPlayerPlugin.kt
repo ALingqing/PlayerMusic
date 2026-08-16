@@ -32,7 +32,14 @@ import java.util.logging.Level
  */
 class MusicPlayerPlugin : JavaPlugin() {
 
-    private var musicCommands: MusicCommands? = null
+    /** 命令处理器（PlaylistManager 需要访问 handlePlay） */
+    var musicCommands: MusicCommands? = null
+        private set
+
+    /** 歌单管理器 */
+    var playlistManager: PlaylistManager? = null
+        private set
+
     var httpFileServer: HttpFileServer? = null
         private set
     var resourcePackGenerator: ResourcePackGenerator? = null
@@ -122,6 +129,7 @@ class MusicPlayerPlugin : JavaPlugin() {
         }
 
         musicCommands = MusicCommands(this)
+        playlistManager = PlaylistManager(this)
         musicSearchManager = MusicSearchManager(this)
         server.pluginManager.registerEvents(PlayerResourceListener(this, musicCommands!!), this)
         logger.info("事件监听器已注册。")
@@ -151,6 +159,11 @@ class MusicPlayerPlugin : JavaPlugin() {
             httpFileServer!!.stop()
         }
         roomCleanupTask?.cancel()
+
+        // 停止所有歌单连播任务
+        playlistManager?.let { pm ->
+            playerLoopTasks.keys.forEach { pm.stopQueue(it) }
+        }
 
         // 取消所有玩家循环任务
         playerLoopTasks.values.forEach { it.cancel() }
