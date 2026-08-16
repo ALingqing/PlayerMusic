@@ -157,21 +157,44 @@ class PlaylistManager(private val plugin: MusicPlayerPlugin) {
         playQueueTasks[id] = task
     }
 
-    /** 估算歌曲时长（毫秒）。用 OGG 文件大小估算（约 128kbps），误差可接受 */
+    /** 估算歌曲时长（毫秒）。优先用 ffmpeg 读取真实时长，失败则按文件大小估算 */
     private fun estimateDuration(url: String): Long {
-        return try {
-            if (url.startsWith("file:")) {
+        // 1) 本地文件：用 ffmpeg 读取真实时长（最准确），失败按大小估算
+        if (url.startsWith("file:")) {
+            try {
                 val file = File(java.net.URLDecoder.decode(java.net.URL(url).path, "UTF-8"))
                 if (file.exists()) {
-                    // 128kbps ≈ 16000 bytes/s；Vorbis q4 ≈ 128kbps
+                    // ffmpeg -i 输出含 "Duration: 00:03:45.12"，从中解析真实时长
+                    val ff = AudioConverter.detectedFfmpegPath()
+                    if (ff != null) {
+                        try {
+                            val p = ProcessBuilder(ff, "-i", file.absolutePath)
+                                .redirectErrorStream(true).start()
+                            val out = p.inputStream.bufferedReader().use { it.readText() }
+                            p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+                            p.destroy()
+                            val m = Regex("Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)").find(out)
+                            if (m != null) {
+                                val h = m.groupValues[1].toLong()
+                                val mi = m.groupValues[2].toLong()
+                                val s = m.groupValues[3].toDouble()
+                                val ms = ((h * 3600 + mi * 60 + s) * 1000).toLong()
+                                // 至少 3 秒，最多 30 分钟，防止异常
+                                return ms.coerceIn(3000L, 1_800_000L)
+                            }
+                        } catch (_: Exception) {
+                        }
+                    }
+                    // 回退：按文件大小估算（约 16000 bytes/s ≈ 128kbps）
                     val seconds = file.length() / 16000L
                     // 至少 3 秒，最多 5 分钟，防止异常
-                    seconds.coerceIn(3L, 300L) * 1000L
-                } else 30000L
-            } else 30000L
-        } catch (_: Exception) {
-            30000L
+                    return seconds.coerceIn(3L, 300L) * 1000L
+                }
+            } catch (_: Exception) {
+            }
         }
+        // 2) 网络 URL / 无法获取：默认 3 分钟（避免"只能听30秒"）
+        return 180_000L
     }
 
     /** 当前队列歌曲名 */
